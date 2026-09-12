@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "84280519183",
+    "project_id": "chessical1",
+    "storage_bucket": "chessical1.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:84280519183:android:YOUR_APP_ID",
+        "android_client_info": {
+          "package_name": "com.hw.chessical"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "YOUR_FIREBASE_API_KEY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
