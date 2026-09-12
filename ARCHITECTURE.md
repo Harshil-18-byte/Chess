@@ -1,19 +1,3 @@
----
-{
-  "id": "file_a5vyfias",
-  "filetype": "document",
-  "filename": "ARCHITECTURE",
-  "created_at": "2026-09-12T12:07:58.637Z",
-  "updated_at": "2026-09-12T12:07:58.637Z",
-  "meta": {
-    "location": "/",
-    "tags": [],
-    "categories": [],
-    "description": "",
-    "source": "markdown"
-  }
-}
----
 # Chessical // Technical Architecture Specification
 
 This document details the systems design, data synchronization protocols, move mutation lifecycles, 3D rendering pipeline, mathematical raycasting hit-testing, background Stockfish FFI isolate architecture, and zero-exploit state reconciliation boundaries of the Chessical platform.
