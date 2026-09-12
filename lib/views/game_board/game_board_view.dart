@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:chess/chess.dart' as chess_lib;
 import '../../core/rules/material_calculator.dart';
 import '../../core/theme/board_themes.dart';
+import '../../core/theme/app_typography.dart';
+import '../../core/theme/liquid_glass.dart';
 import '../../models/chess_match.dart';
 import '../../services/audio_service.dart';
 import '../../services/pgn_service.dart';
@@ -390,30 +392,20 @@ class _GameBoardViewState extends ConsumerState<GameBoardView> {
           style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
         ),
         actions: [
-          // Audio Mute / Unmute
-          IconButton(
-            icon: Icon(
-              _isAudioMuted ? Icons.volume_off_rounded : Icons.volume_up_rounded,
-              color: _isAudioMuted ? Colors.white54 : BoardThemes.accentGold,
-            ),
-            tooltip: _isAudioMuted ? 'Unmute Sound' : 'Mute Sound',
-            onPressed: () {
+          // ── Sound toggle chip ─────────────────────────────────────────
+          _AppBarChip(
+            label: _isAudioMuted ? 'Sound Off' : 'Sound',
+            active: !_isAudioMuted,
+            onTap: () {
               ref.read(audioServiceProvider).toggleMute();
               setState(() => _isAudioMuted = !_isAudioMuted);
             },
           ),
-          // 2D / 3D Mode Toggle
-          IconButton(
-            icon: Icon(
-              _renderMode == BoardRenderMode.threeD
-                  ? Icons.view_in_ar_rounded
-                  : Icons.grid_view_rounded,
-              color: BoardThemes.accentCyan,
-            ),
-            tooltip: _renderMode == BoardRenderMode.threeD
-                ? 'Switch to 2D Board'
-                : 'Switch to 3D Board',
-            onPressed: () {
+          // ── 2D / 3D toggle chip ───────────────────────────────────────
+          _AppBarChip(
+            label: _renderMode == BoardRenderMode.threeD ? '3D' : '2D',
+            active: true,
+            onTap: () {
               setState(() {
                 _renderMode = _renderMode == BoardRenderMode.threeD
                     ? BoardRenderMode.twoD
@@ -421,19 +413,30 @@ class _GameBoardViewState extends ConsumerState<GameBoardView> {
               });
             },
           ),
-          IconButton(
-            icon: const Icon(Icons.flip_camera_android),
-            tooltip: 'Flip Board',
-            onPressed: () {
+          // ── Flip board chip ───────────────────────────────────────────
+          _AppBarChip(
+            label: 'Flip',
+            active: _isBoardFlipped,
+            onTap: () {
               setState(() {
                 _isBoardFlipped = !_isBoardFlipped;
                 _sceneController.isFlipped = _isBoardFlipped;
               });
             },
           ),
-          // More Menu (PGN & FEN Export)
+          // ── Overflow menu chip (PGN / FEN export) ─────────────────────
           PopupMenuButton<String>(
-            icon: const Icon(Icons.more_vert, color: Colors.white70),
+            child: const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              child: Text(
+                'Menu',
+                style: TextStyle(
+                  color: Colors.white70,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
             onSelected: (value) async {
               final currentMatch = matchAsync.value;
               if (currentMatch == null) return;
@@ -467,23 +470,11 @@ class _GameBoardViewState extends ConsumerState<GameBoardView> {
             itemBuilder: (context) => [
               const PopupMenuItem(
                 value: 'pgn',
-                child: Row(
-                  children: [
-                    Icon(Icons.copy, size: 16, color: Colors.white70),
-                    SizedBox(width: 8),
-                    Text('Copy PGN', style: TextStyle(color: Colors.white)),
-                  ],
-                ),
+                child: Text('Copy PGN', style: TextStyle(color: Colors.white)),
               ),
               const PopupMenuItem(
                 value: 'fen',
-                child: Row(
-                  children: [
-                    Icon(Icons.code, size: 16, color: Colors.white70),
-                    SizedBox(width: 8),
-                    Text('Copy FEN', style: TextStyle(color: Colors.white)),
-                  ],
-                ),
+                child: Text('Copy FEN', style: TextStyle(color: Colors.white)),
               ),
             ],
           ),
@@ -526,23 +517,27 @@ class _GameBoardViewState extends ConsumerState<GameBoardView> {
                 child: Column(
                   children: [
                     // Top Clock Bar
-                    GameClockWidget(
-                      whiteMillisRemaining: match.whiteMillisRemaining,
-                      blackMillisRemaining: match.blackMillisRemaining,
-                      activeTurn: match.activeTurn,
-                      isMatchActive: match.isActive,
-                      playerName: isPlayerWhite ? 'You (White)' : 'You (Black)',
-                      opponentName: match.matchType == 'engine'
-                          ? 'Stockfish (Lv ${match.engineDifficulty ?? 10})'
-                          : (isPlayerWhite ? 'Opponent (Black)' : 'Opponent (White)'),
-                      playerColor: isPlayerWhite ? 'w' : 'b',
-                      onTimeout: () {
-                        ref
-                            .read(gameStateNotifierProvider.notifier)
-                            .claimTimeout(match.activeTurn);
-                      },
+                    LiquidGlassContainer(
+                      padding: const EdgeInsets.all(10),
+                      margin: const EdgeInsets.only(bottom: 12),
+                      borderRadius: BorderRadius.circular(16),
+                      child: GameClockWidget(
+                        whiteMillisRemaining: match.whiteMillisRemaining,
+                        blackMillisRemaining: match.blackMillisRemaining,
+                        activeTurn: match.activeTurn,
+                        isMatchActive: match.isActive,
+                        playerName: isPlayerWhite ? 'You (White)' : 'You (Black)',
+                        opponentName: match.matchType == 'engine'
+                            ? 'Stockfish (Lv ${match.engineDifficulty ?? 10})'
+                            : (isPlayerWhite ? 'Opponent (Black)' : 'Opponent (White)'),
+                        playerColor: isPlayerWhite ? 'w' : 'b',
+                        onTimeout: () {
+                          ref
+                              .read(gameStateNotifierProvider.notifier)
+                              .claimTimeout(match.activeTurn);
+                        },
+                      ),
                     ),
-                    const SizedBox(height: 12),
 
                     // Draw Offer Notification Banner
                     if (match.drawOfferedBy != null &&
@@ -876,7 +871,7 @@ class _GameBoardViewState extends ConsumerState<GameBoardView> {
                           ),
                         );
                       },
-                      loading: () => const SizedBox.shrink(),
+        loading: () => const SizedBox.shrink(),
                       error: (e, st) => const SizedBox.shrink(),
                     ),
                   ],
@@ -885,6 +880,55 @@ class _GameBoardViewState extends ConsumerState<GameBoardView> {
             ),
           );
         },
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// _AppBarChip — compact text pill used in the zero-icon AppBar.
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _AppBarChip extends StatelessWidget {
+  const _AppBarChip({
+    required this.label,
+    required this.onTap,
+    this.active = false,
+  });
+
+  final String label;
+  final VoidCallback onTap;
+
+  /// When true, draws a 1 px white border to signal the active state.
+  final bool active;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+      child: GestureDetector(
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          curve: Curves.easeOutBack,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+          decoration: BoxDecoration(
+            color: active
+                ? BoardThemes.pureWhite.withValues(alpha: 0.10)
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(20),
+            border: active
+                ? Border.all(color: BoardThemes.pureWhite.withValues(alpha: 0.30), width: 1)
+                : null,
+          ),
+          child: Text(
+            label,
+            style: AppTypography.labelMedium.copyWith(
+              color: active ? BoardThemes.pureWhite : BoardThemes.mutedSilver,
+              fontSize: 13,
+            ),
+          ),
+        ),
       ),
     );
   }
