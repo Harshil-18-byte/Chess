@@ -63,8 +63,8 @@ class DefaultFirebaseOptions {
   );
 
   static const FirebaseOptions ios = FirebaseOptions(
-    apiKey: 'AIzaSyDwmJ5E7GNMN73eCH0OcV7eguJSqOBLumE',
-    appId: '1:84280519183:ios:a4a9f83b8ef090b23f117a',
+    apiKey: 'AIzaSyCm9Vn4Q2X8s6mlgxlnckoPWiYwWDIchSc',
+    appId: '1:84280519183:ios:648ff6f0428f24743f117a',
     messagingSenderId: '84280519183',
     projectId: 'chessical1',
     storageBucket: 'chessical1.firebasestorage.app',
