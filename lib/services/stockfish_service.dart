@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'package:stockfish_flutter_plus/stockfish_flutter_plus.dart';
+import 'package:stockfish/stockfish.dart';
 
 /// Represents a parsed move output from the UCI engine.
 class EngineMoveResult {
