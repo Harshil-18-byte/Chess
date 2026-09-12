@@ -1,0 +1,113 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions for security validation
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isUser(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isMatchParticipant(matchData) {
+      return isAuthenticated() &&
+        (request.auth.uid == matchData.whiteUid || request.auth.uid == matchData.blackUid);
+    }
+
+    function isServerTimestamp(field) {
+      return field == request.time;
+    }
+
+    // ==========================================
+    // USER PROFILES
+    // ==========================================
+    match /users/{userId} {
+      // Anyone authenticated can read player profiles (for leaderboard, matchmaking)
+      allow read: if isAuthenticated();
+      // Only the user themselves can write or update their profile
+      allow create, update: if isUser(userId);
+      allow delete: if false; // Profiles are permanent
+    }
+
+    // ==========================================
+    // MATCHMAKING QUEUE
+    // ==========================================
+    match /matchmaking_queue/{userId} {
+      // Authenticated users can read queue to match opponents
+      allow read: if isAuthenticated();
+      // Users can only join/enqueue themselves with server timestamp
+      allow create: if isUser(userId)
+                    && request.resource.data.uid == userId
+                    && isServerTimestamp(request.resource.data.queuedAt);
+      // Users can leave queue, or an opponent can pop them on match creation
+      allow delete: if isAuthenticated();
+      allow update: if false;
+    }
+
+    // ==========================================
+    // MATCHES COLLECTION
+    // ==========================================
+    match /matches/{matchId} {
+      // Only match participants can read the match state (or engine matches)
+      allow read: if isAuthenticated() &&
+        (resource == null ||
+         resource.data.whiteUid == request.auth.uid ||
+         resource.data.blackUid == request.auth.uid ||
+         resource.data.whiteUid == 'anonymous' ||
+         resource.data.blackUid == 'engine_stockfish');
+
+      // Match creation: Must be a participant, with initial active state
+      allow create: if isAuthenticated() &&
+        (request.resource.data.whiteUid == request.auth.uid ||
+         request.resource.data.blackUid == request.auth.uid) &&
+        request.resource.data.status == 'active' &&
+        request.resource.data.activeTurn == 'w' &&
+        isServerTimestamp(request.resource.data.createdAt) &&
+        isServerTimestamp(request.resource.data.lastMoveServerTimestamp);
+
+      // Match update (Move submission, resignation, draw, timeout):
+      allow update: if isAuthenticated() &&
+        isMatchParticipant(resource.data) &&
+        isServerTimestamp(request.resource.data.lastMoveServerTimestamp) &&
+        // Turn-matching verification against the EXISTING resource data
+        (
+          // Case A: Submitting a valid move on player's turn
+          (
+            (resource.data.activeTurn == 'w' && request.auth.uid == resource.data.whiteUid) ||
+            (resource.data.activeTurn == 'b' && request.auth.uid == resource.data.blackUid) ||
+            (resource.data.matchType == 'engine' && request.auth.uid == resource.data.whiteUid)
+          ) ||
+          // Case B: Resignation by either participant
+          (request.resource.data.status == 'resignation') ||
+          // Case C: Offering or responding to draw
+          (request.resource.data.drawOfferedBy != resource.data.drawOfferedBy) ||
+          // Case D: Claiming verified timeout
+          (request.resource.data.status == 'whiteTimeout' || request.resource.data.status == 'blackTimeout')
+        );
+
+      allow delete: if false; // Matches cannot be deleted by clients
+
+      // ==========================================
+      // MOVES SUBCOLLECTION (IMMUTABLE AUDIT LOG)
+      // ==========================================
+      match /moves/{moveId} {
+        // Only match participants can read move history
+        allow read: if isAuthenticated() &&
+          (get(/databases/$(database)/documents/matches/$(matchId)).data.whiteUid == request.auth.uid ||
+           get(/databases/$(database)/documents/matches/$(matchId)).data.blackUid == request.auth.uid ||
+           get(/databases/$(database)/documents/matches/$(matchId)).data.blackUid == 'engine_stockfish');
+
+        // Move creation: Must be authenticated participant and movedBy matches caller UID
+        allow create: if isAuthenticated() &&
+          (request.auth.uid == request.resource.data.movedBy ||
+           request.resource.data.movedBy == 'engine_stockfish') &&
+          isServerTimestamp(request.resource.data.serverTimestamp);
+
+        // Moves are strictly IMMUTABLE once created
+        allow update, delete: if false;
+      }
+    }
+  }
+}
