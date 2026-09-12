@@ -21,6 +21,7 @@ class MockAuthService extends FirebaseAuthService {
 }
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
   group('E2E Match Simulation & Pipeline Verification', () {
     late FakeFirebaseFirestore fakeFirestore;
     late FirestoreService firestoreService;
