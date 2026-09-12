@@ -7,6 +7,7 @@ import '../core/errors/app_exceptions.dart';
 import '../core/rules/chess_rules_evaluator.dart';
 import '../models/chess_match.dart';
 import '../models/chess_move.dart';
+import '../services/audio_service.dart';
 import '../services/firebase_auth_service.dart';
 import '../services/firestore_service.dart';
 import '../services/stockfish_service.dart';
@@ -353,6 +354,19 @@ class GameStateNotifier extends AsyncNotifier<ChessMatch> {
                   : null),
         ),
       );
+
+      try {
+        final audio = ref.read(audioServiceProvider);
+        if (newStatus != MatchStatus.active) {
+          audio.playGameOver();
+        } else if (isCheck) {
+          audio.playCheck();
+        } else if (isCapture) {
+          audio.playCapture();
+        } else {
+          audio.playMove();
+        }
+      } catch (_) {}
     } catch (e, stack) {
       state = AsyncError(e, stack);
       rethrow;
