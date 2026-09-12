@@ -1,0 +1,46 @@
+{
+  "themeName": "classic",
+  "author": "Enterprise Chess Team / Poly Haven CC0",
+  "license": "CC0 1.0 Universal (Public Domain Dedication)",
+  "format": "gltf-binary / procedural-lathe-profile",
+  "triangleBudgetMax": 4500,
+  "textureResolutionMax": "1024x1024",
+  "pieces": {
+    "king": {
+      "meshFile": "king.glb",
+      "triangles": 3840,
+      "height": 1.15,
+      "baseRadius": 0.42
+    },
+    "queen": {
+      "meshFile": "queen.glb",
+      "triangles": 3620,
+      "height": 1.02,
+      "baseRadius": 0.42
+    },
+    "rook": {
+      "meshFile": "rook.glb",
+      "triangles": 2400,
+      "height": 0.74,
+      "baseRadius": 0.40
+    },
+    "bishop": {
+      "meshFile": "bishop.glb",
+      "triangles": 2980,
+      "height": 0.88,
+      "baseRadius": 0.38
+    },
+    "knight": {
+      "meshFile": "knight.glb",
+      "triangles": 4200,
+      "height": 0.78,
+      "baseRadius": 0.38
+    },
+    "pawn": {
+      "meshFile": "pawn.glb",
+      "triangles": 1820,
+      "height": 0.65,
+      "baseRadius": 0.36
+    }
+  }
+}
