@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/constants/chess_constants.dart';
 import '../core/theme/board_themes.dart';
+import '../core/theme/app_typography.dart';
+import '../core/theme/liquid_glass.dart';
 import '../models/chess_match.dart';
 import '../models/chess_grade.dart';
 import '../models/user_profile.dart';
@@ -217,7 +219,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           title: Row(
             children: const [
-              Icon(Icons.workspace_premium, color: BoardThemes.accentGold),
+              Text(
+                '♛',
+                style: TextStyle(fontSize: 22, color: BoardThemes.pureWhite),
+              ),
               SizedBox(width: 8),
               Text(
                 'Select Chess Grade',
@@ -289,7 +294,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         style: BoardThemes.bodyRegular.copyWith(fontSize: 11),
                       ),
                       trailing: isSelected
-                          ? Icon(Icons.check_circle, color: grade.color)
+                          ? const Text(
+                              '●',
+                              style: TextStyle(
+                                color: BoardThemes.pureWhite,
+                                fontSize: 18,
+                              ),
+                            )
                           : null,
                       onTap: () async {
                         if (_userProfile != null) {
@@ -321,16 +332,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   Widget _buildGradeEngineCard(ChessGrade grade) {
-    return InkWell(
+    return GestureDetector(
       onTap: () => _startEngineMatch(grade.stockfishSkill, grade.title),
-      borderRadius: BorderRadius.circular(12),
-      child: Container(
+      child: LiquidGlassContainer(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
-        decoration: BoxDecoration(
-          color: BoardThemes.surfaceDark,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: grade.color.withAlpha(80)),
-        ),
+        borderRadius: BorderRadius.circular(14),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisAlignment: MainAxisAlignment.center,
@@ -340,21 +346,21 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               children: [
                 Text(
                   grade.iconSymbol,
-                  style: TextStyle(fontSize: 22, color: grade.color),
+                  style: AppTypography.titleLarge.copyWith(fontSize: 22),
                 ),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
                   decoration: BoxDecoration(
-                    color: grade.color.withAlpha(30),
+                    color: BoardThemes.borderHairline,
                     borderRadius: BorderRadius.circular(6),
+                    border: Border.all(
+                      color: BoardThemes.mutedSilver.withValues(alpha: 0.3),
+                      width: 1,
+                    ),
                   ),
                   child: Text(
                     'Lvl ${grade.stockfishSkill}',
-                    style: TextStyle(
-                      color: grade.color,
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                    ),
+                    style: AppTypography.labelSmall,
                   ),
                 ),
               ],
@@ -362,20 +368,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             const SizedBox(height: 8),
             Text(
               grade.title,
-              style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-                fontSize: 13,
-              ),
+              style: AppTypography.labelLarge.copyWith(fontSize: 13),
             ),
             const SizedBox(height: 2),
             Text(
               '${grade.elo} Elo',
-              style: TextStyle(
-                color: grade.color,
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-              ),
+              style: AppTypography.bodySmall,
             ),
           ],
         ),
@@ -401,7 +399,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 height: 28,
                 fit: BoxFit.cover,
                 errorBuilder: (context, error, stackTrace) =>
-                    const Text('♚', style: TextStyle(fontSize: 24, color: BoardThemes.brandEmber)),
+                    const Text('♚', style: TextStyle(fontSize: 24, color: BoardThemes.pureWhite)),
               ),
             ),
             const SizedBox(width: 10),
