@@ -187,17 +187,15 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    IconButton(
-                      icon: const Icon(Icons.first_page, color: Colors.white),
-                      onPressed: _currentMoveIndex > 0
-                          ? () => setState(() => _currentMoveIndex = 0)
-                          : null,
+                    _NavButton(
+                      label: '|\u25c2',
+                      enabled: _currentMoveIndex > 0,
+                      onTap: () => setState(() => _currentMoveIndex = 0),
                     ),
-                    IconButton(
-                      icon: const Icon(Icons.chevron_left, color: Colors.white),
-                      onPressed: _currentMoveIndex > 0
-                          ? () => setState(() => _currentMoveIndex--)
-                          : null,
+                    _NavButton(
+                      label: '\u25c2',
+                      enabled: _currentMoveIndex > 0,
+                      onTap: () => setState(() => _currentMoveIndex--),
                     ),
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -210,17 +208,15 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                         ),
                       ),
                     ),
-                    IconButton(
-                      icon: const Icon(Icons.chevron_right, color: Colors.white),
-                      onPressed: _currentMoveIndex < _moves.length
-                          ? () => setState(() => _currentMoveIndex++)
-                          : null,
+                    _NavButton(
+                      label: '\u25b8',
+                      enabled: _currentMoveIndex < _moves.length,
+                      onTap: () => setState(() => _currentMoveIndex++),
                     ),
-                    IconButton(
-                      icon: const Icon(Icons.last_page, color: Colors.white),
-                      onPressed: _currentMoveIndex < _moves.length
-                          ? () => setState(() => _currentMoveIndex = _moves.length)
-                          : null,
+                    _NavButton(
+                      label: '\u25b8|',
+                      enabled: _currentMoveIndex < _moves.length,
+                      onTap: () => setState(() => _currentMoveIndex = _moves.length),
                     ),
                   ],
                 ),
@@ -272,6 +268,52 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                 ),
               ],
             ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// _NavButton — text-based navigation control (zero-icon policy).
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _NavButton extends StatelessWidget {
+  const _NavButton({
+    required this.label,
+    required this.onTap,
+    this.enabled = true,
+  });
+
+  final String label;
+  final VoidCallback onTap;
+  final bool enabled;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: enabled ? onTap : null,
+      child: Container(
+        width: 36,
+        height: 36,
+        margin: const EdgeInsets.symmetric(horizontal: 4),
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: enabled
+                ? Colors.white.withValues(alpha: 0.25)
+                : Colors.white.withValues(alpha: 0.08),
+            width: 1,
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            color: enabled ? Colors.white : Colors.white24,
           ),
         ),
       ),
