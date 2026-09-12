@@ -297,3 +297,82 @@ $$\text{IsThreefold} = \left( \sum_{i=1}^{M} \mathbb{I}\left(\text{StateRecord}_
 1. **3D Initialization / Shader Failure**: If canvas 3D projection triggers a `RenderInitException` or GPU context loss, `GameBoardView` catches the exception and flips `_renderMode = BoardRenderMode.twoD`, rendering the standard 2D canvas without disrupting the active match.
 2. **Network Partition During Move Write**: If an in-flight transaction fails due to connectivity loss, the local optimistic FEN is rolled back to the last verified snapshot and the user is shown a non-blocking retry indicator.
 3. **Stale State Resolution**: If an opponent's move arrives concurrently with a local move submission, the transaction fails at the `activeTurn` check, triggering an automatic resync to the opponent's authoritative board state.
+
+---
+
+## 8. Liquid Glass Visual System
+
+### 8.1 Design Philosophy
+
+Chessical implements Apple's **Liquid Glass** visual language with a strict **Black & White, Zero-Icon** design policy:
+
+| Design Axis | Rule |
+| :--- | :--- |
+| **Color palette** | Strictly 9 greyscale hex steps: `#000000` → `#0A0A0A` → `#1A1A1A` → `#333333` → `#666666` → `#999999` → `#E0E0E0` → `#FAFAFA` → `#FFFFFF`. Zero saturated chroma. |
+| **Icons** | All icon fonts (`Icons.*`, `CupertinoIcons.*`, SVG glyphs) replaced with explicit textual labels (`Sound`, `2D`, `3D`, `Flip`, `Menu`, `Chat`, `×`) and geometric indicators (filled / outlined circles, border rings). |
+| **Typography** | Display: `Cinzel` (classical serif, titles and match outcomes). UI / Body: `Inter` (humanist sans, clocks, SAN notation, buttons). All clock text uses tabular figures. |
+
+### 8.2 Dual-Path Architecture
+
+```
+UI Chrome Surface (Clocks, History Panel, Dialogs, Quick Chat Modal)
+        │
+        ▼
+ Platform & Capability Check
+   ┌────────────────────────────────────────────┐
+   │  iOS 26+ SDK + Bridge Available            │
+   │  ──────────────────────────────────        │
+   │  PATH A: Native iOS Liquid Glass Bridge    │
+   │  • UiKitView hosts SwiftUI .glassEffect()  │
+   │  • True hardware pixel refraction (Metal)  │
+   │  • Gyro-reactive specular highlights       │
+   │  • Reads: UIAccessibility.isReduce{Motion, │
+   │    Transparency}Enabled before rendering   │
+   └────────────────────────────────────────────┘
+   ┌────────────────────────────────────────────┐
+   │  Android, Windows, Web, or iOS fallback    │
+   │  ──────────────────────────────────────    │
+   │  PATH B: Flutter-Native Approximation      │
+   │  • BackdropFilter(ImageFilter.blur(σ=24))  │
+   │  • 8%-18% semi-transparent wash, no grads  │
+   │  • 1 px hairline at 12% opacity            │
+   │  • sensors_plus accelerometer → specular   │
+   │    streak parallax shift (±6 px)           │
+   │  • Spring-overshoot spring curve           │
+   └────────────────────────────────────────────┘
+        │
+        ▼
+ Accessibility Override
+   • MediaQuery.disableAnimations / highContrast
+     → Flat opaque BoardThemes.surfaceCard surface
+   • UIAccessibility.isReduceTransparencyEnabled
+     → Opaque UIColor without blur or specular
+```
+
+### 8.3 Key Files
+
+| File | Role |
+| :--- | :--- |
+| [`lib/core/theme/board_themes.dart`](lib/core/theme/board_themes.dart) | 9-step greyscale palette tokens + backwards-compat aliases |
+| [`lib/core/theme/app_typography.dart`](lib/core/theme/app_typography.dart) | Cinzel + Inter type scale with tabular clock figures |
+| [`lib/core/theme/liquid_glass.dart`](lib/core/theme/liquid_glass.dart) | `LiquidGlassContainer` (Path B), `queryLiquidGlassBridge()` (Path A), `showLiquidGlassModal()` |
+| [`ios/Runner/LiquidGlassView.swift`](ios/Runner/LiquidGlassView.swift) | Native SwiftUI `.glassEffect()` platform view + iOS 13 UIVisualEffectView fallback |
+| [`ios/Runner/AppDelegate.swift`](ios/Runner/AppDelegate.swift) | Registers `LiquidGlassViewFactory` + `enterprise_chess/liquid_glass` accessibility method channel |
+
+### 8.4 Surface Inventory
+
+All glass surfaces in the app use `LiquidGlassContainer` with these parameters:
+
+| Surface | σBlur | Border Radius | Notes |
+| :--- | :---: | :---: | :--- |
+| Player Clock Bar | 24 | 16 px | Wrapped in game_board_view.dart |
+| Grade Engine Cards | 24 | 14 px | Per-card in home_screen.dart |
+| Quick Chat Modal | 24 | 24 px top | Bottom sheet |
+| Profile header | 24 | 20 px | Default |
+
+### 8.5 Accessibility Compliance
+
+- **Reduce Transparency (iOS)**: Queried via Path A bridge → `flat surfaceCard` fallback.
+- **Reduce Motion (iOS + Flutter)**: `MediaQuery.disableAnimations(context)` → disables specular animation and `AnimatedContainer` transitions.
+- **High Contrast (Flutter)**: `MediaQuery.highContrastOf(context)` → disables blur, renders solid surface.
+- All text elements meet WCAG 2.1 AA contrast (≥4.5:1) against the `#0A0A0A` scaffold background.
