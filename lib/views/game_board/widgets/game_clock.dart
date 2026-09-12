@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../../core/constants/chess_constants.dart';
 import '../../../core/theme/board_themes.dart';
+import '../../../core/theme/app_typography.dart';
 
 /// Renders a responsive player clock with 100ms visual ticker and authoritative Firestore resyncing.
 class GameClockWidget extends StatefulWidget {
@@ -127,11 +128,12 @@ class _GameClockWidgetState extends State<GameClockWidget> {
     Color badgeBg;
     Color textColor;
     if (isActiveTurn) {
-      badgeBg = isLowTime ? BoardThemes.dangerAlert : BoardThemes.accentCyan;
-      textColor = Colors.black;
+      // Active turn: white badge → black text for contrast, or dim red when low time.
+      badgeBg = isLowTime ? BoardThemes.midSlate : BoardThemes.pureWhite;
+      textColor = isLowTime ? BoardThemes.offWhite : BoardThemes.pitchBlack;
     } else {
       badgeBg = BoardThemes.surfaceCard;
-      textColor = isLowTime ? BoardThemes.accentRose : Colors.white;
+      textColor = isLowTime ? BoardThemes.mutedSilver : Colors.white;
     }
 
     return Container(
@@ -141,15 +143,14 @@ class _GameClockWidgetState extends State<GameClockWidget> {
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
           color: isActiveTurn
-              ? (isLowTime ? BoardThemes.dangerAlert : BoardThemes.accentCyan)
+              ? (isLowTime ? BoardThemes.midSlate : BoardThemes.pureWhite)
               : BoardThemes.borderSubtle,
           width: isActiveTurn ? 2.0 : 1.0,
         ),
-        boxShadow: isActiveTurn
+        boxShadow: isActiveTurn && !isLowTime
             ? [
                 BoxShadow(
-                  color: (isLowTime ? BoardThemes.dangerAlert : BoardThemes.accentCyan)
-                      .withAlpha(80),
+                  color: BoardThemes.pureWhite.withValues(alpha: 0.08),
                   blurRadius: 10,
                   spreadRadius: 1,
                 )
@@ -202,7 +203,7 @@ class _GameClockWidgetState extends State<GameClockWidget> {
             ),
             child: Text(
               _formatTime(millis),
-              style: BoardThemes.clockDigits.copyWith(
+              style: AppTypography.clockLarge.copyWith(
                 color: textColor,
                 fontSize: 18,
               ),
