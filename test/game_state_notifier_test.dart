@@ -17,6 +17,7 @@ class TestAuthService extends FirebaseAuthService {
 }
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
   group('GameStateNotifier Unit Tests', () {
     late FakeFirebaseFirestore fakeFirestore;
     late FirestoreService firestoreService;
