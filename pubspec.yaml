@@ -45,6 +45,7 @@ dependencies:
   google_fonts: ^8.2.1
   flutter_svg: ^2.3.0
   shared_preferences: ^2.5.5
+  audioplayers: ^6.8.1
 
 dev_dependencies:
   flutter_test:
@@ -73,6 +74,7 @@ flutter:
   assets:
     - assets/models/pieces/classic/
     - assets/images/
+    - assets/sounds/
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images
