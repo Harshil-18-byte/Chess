@@ -661,14 +661,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.0.0"
-  stockfish_flutter_plus:
+  stockfish:
     dependency: "direct main"
     description:
-      name: stockfish_flutter_plus
-      sha256: "1e066cda61593326ff05c9d3ce6087826bbdce57a7c0588999283cd16e5577bb"
+      name: stockfish
+      sha256: b27956fa6c21f8637db62411c564d1ba1d0b0e9e27ee928f42a85367da891fa0
       url: "https://pub.dev"
     source: hosted
-    version: "1.0.1"
+    version: "1.8.1"
   stream_channel:
     dependency: transitive
     description:
