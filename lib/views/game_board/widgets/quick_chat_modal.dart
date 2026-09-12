@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../core/theme/board_themes.dart';
+import '../../../core/theme/app_typography.dart';
+import '../../../core/theme/liquid_glass.dart';
 
 /// Modal dialog for selecting quick messages and emoji reactions during a game.
 class QuickChatModal extends StatelessWidget {
@@ -26,13 +28,9 @@ class QuickChatModal extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return LiquidGlassContainer(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
-      decoration: BoxDecoration(
-        color: BoardThemes.surfaceDark,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-        border: Border.all(color: BoardThemes.borderSubtle),
-      ),
+      borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
       child: SafeArea(
         top: false,
         child: Column(
@@ -42,13 +40,28 @@ class QuickChatModal extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text(
-                  'Quick Reactions',
-                  style: BoardThemes.headerMedium,
-                ),
-                IconButton(
-                  icon: const Icon(Icons.close, color: Colors.white54),
-                  onPressed: () => Navigator.of(context).pop(),
+                Text('Quick Reactions', style: AppTypography.titleMedium),
+                GestureDetector(
+                  onTap: () => Navigator.of(context).pop(),
+                  child: Container(
+                    width: 32,
+                    height: 32,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: BoardThemes.mutedSilver.withValues(alpha: 0.4),
+                        width: 1,
+                      ),
+                    ),
+                    child: Text(
+                      '×',
+                      style: AppTypography.labelLarge.copyWith(
+                        fontSize: 18,
+                        color: BoardThemes.mutedSilver,
+                      ),
+                    ),
+                  ),
                 ),
               ],
             ),
