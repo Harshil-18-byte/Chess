@@ -1,12 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'core/theme/board_themes.dart';
+import 'firebase_options.dart';
 import 'views/home_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  // Note: Firebase.initializeApp() is called if Firebase credentials exist in environment
+  try {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+  } catch (_) {
+    // If running in offline test or mock harness
+  }
+
   runApp(
     const ProviderScope(
       child: EnterpriseChessApp(),
