@@ -1,19 +1,3 @@
----
-{
-  "id": "file_pdskzwgt",
-  "filetype": "document",
-  "filename": "README",
-  "created_at": "2026-09-12T12:06:58.062Z",
-  "updated_at": "2026-09-12T12:07:16.322Z",
-  "meta": {
-    "location": "/",
-    "tags": [],
-    "categories": [],
-    "description": "",
-    "source": "markdown"
-  }
-}
----
 <div align="center">
 
 <img src="assets/images/logo.png" alt="Chessical Logo" width="160" />
