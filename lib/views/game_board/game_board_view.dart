@@ -1,11 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:chess/chess.dart' as chess_lib;
+import '../../core/rules/material_calculator.dart';
 import '../../core/theme/board_themes.dart';
 import '../../models/chess_match.dart';
+import '../../services/audio_service.dart';
+import '../../services/pgn_service.dart';
 import '../../state/game_state_notifier.dart';
 import 'widgets/board_square.dart';
 import 'widgets/game_clock.dart';
+import 'widgets/evaluation_bar.dart';
+import 'widgets/quick_chat_modal.dart';
 import 'board_3d/chess_scene_controller.dart';
 import 'board_3d/move_animation_controller.dart';
 import 'board_3d/board_3d_view.dart';
@@ -30,6 +35,8 @@ class _GameBoardViewState extends ConsumerState<GameBoardView> {
   String? _lastMoveFrom;
   String? _lastMoveTo;
   BoardRenderMode _renderMode = BoardRenderMode.twoD;
+  String? _activeReaction;
+  bool _isAudioMuted = false;
 
   late ChessSceneController _sceneController;
   late MoveAnimationController _moveAnimationController;
@@ -217,6 +224,68 @@ class _GameBoardViewState extends ConsumerState<GameBoardView> {
     );
   }
 
+  void _onReactionSelected(String message, bool isEmote) {
+    setState(() {
+      _activeReaction = message;
+    });
+    Future.delayed(const Duration(milliseconds: 3500), () {
+      if (mounted && _activeReaction == message) {
+        setState(() => _activeReaction = null);
+      }
+    });
+  }
+
+  Widget _buildCapturedTray(List<String> pieces, int advantage, bool isWhite) {
+    if (pieces.isEmpty && advantage <= 0) {
+      return const SizedBox(height: 18);
+    }
+    return Container(
+      height: 24,
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      child: Row(
+        children: [
+          Expanded(
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: pieces.map((p) {
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 2),
+                    child: Text(
+                      MaterialScore.getPieceSymbol(p),
+                      style: TextStyle(
+                        fontSize: 16,
+                        color: isWhite ? const Color(0xFFF0D9B5) : const Color(0xFF94A3B8),
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
+          ),
+          if (advantage > 0) ...[
+            const SizedBox(width: 6),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+              decoration: BoxDecoration(
+                color: BoardThemes.accentCyan.withAlpha(40),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Text(
+                '+$advantage',
+                style: const TextStyle(
+                  color: BoardThemes.accentCyan,
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
   void _showGameOverDialog(ChessMatch match) {
     final currentUid = ref.read(authServiceProvider).currentUid;
     final isWinner = match.winnerUid == currentUid;
@@ -260,17 +329,43 @@ class _GameBoardViewState extends ConsumerState<GameBoardView> {
                 style: BoardThemes.bodyRegular,
               ),
               const SizedBox(height: 20),
-              ElevatedButton(
-                onPressed: () {
-                  Navigator.of(context).pop();
-                  Navigator.of(context).pop();
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: BoardThemes.accentCyan,
-                  foregroundColor: Colors.black,
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                ),
-                child: const Text('Return to Lobby'),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  OutlinedButton.icon(
+                    onPressed: () async {
+                      final moves = ref.read(matchMovesProvider(widget.matchId)).value ?? [];
+                      final pgn = PgnService.generatePgn(
+                        match: match,
+                        moves: moves,
+                      );
+                      await PgnService.copyPgnToClipboard(pgn);
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('PGN copied to clipboard!'),
+                            backgroundColor: BoardThemes.accentEmerald,
+                          ),
+                        );
+                      }
+                    },
+                    icon: const Icon(Icons.copy, size: 16, color: BoardThemes.accentCyan),
+                    label: const Text('Copy PGN', style: TextStyle(color: BoardThemes.accentCyan)),
+                  ),
+                  const SizedBox(width: 10),
+                  ElevatedButton(
+                    onPressed: () {
+                      Navigator.of(context).pop();
+                      Navigator.of(context).pop();
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: BoardThemes.accentCyan,
+                      foregroundColor: Colors.black,
+                      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+                    ),
+                    child: const Text('Lobby'),
+                  ),
+                ],
               ),
             ],
           ),
@@ -295,6 +390,18 @@ class _GameBoardViewState extends ConsumerState<GameBoardView> {
           style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
         ),
         actions: [
+          // Audio Mute / Unmute
+          IconButton(
+            icon: Icon(
+              _isAudioMuted ? Icons.volume_off_rounded : Icons.volume_up_rounded,
+              color: _isAudioMuted ? Colors.white54 : BoardThemes.accentGold,
+            ),
+            tooltip: _isAudioMuted ? 'Unmute Sound' : 'Mute Sound',
+            onPressed: () {
+              ref.read(audioServiceProvider).toggleMute();
+              setState(() => _isAudioMuted = !_isAudioMuted);
+            },
+          ),
           // 2D / 3D Mode Toggle
           IconButton(
             icon: Icon(
@@ -324,6 +431,62 @@ class _GameBoardViewState extends ConsumerState<GameBoardView> {
               });
             },
           ),
+          // More Menu (PGN & FEN Export)
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.more_vert, color: Colors.white70),
+            onSelected: (value) async {
+              final currentMatch = matchAsync.value;
+              if (currentMatch == null) return;
+              if (value == 'pgn') {
+                final moves = movesAsync.value ?? [];
+                final pgn = PgnService.generatePgn(
+                  match: currentMatch,
+                  moves: moves,
+                );
+                await PgnService.copyPgnToClipboard(pgn);
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('PGN copied to clipboard!'),
+                      backgroundColor: BoardThemes.accentEmerald,
+                    ),
+                  );
+                }
+              } else if (value == 'fen') {
+                await PgnService.copyFenToClipboard(currentMatch.currentFen);
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('FEN copied to clipboard!'),
+                      backgroundColor: BoardThemes.accentEmerald,
+                    ),
+                  );
+                }
+              }
+            },
+            itemBuilder: (context) => [
+              const PopupMenuItem(
+                value: 'pgn',
+                child: Row(
+                  children: [
+                    Icon(Icons.copy, size: 16, color: Colors.white70),
+                    SizedBox(width: 8),
+                    Text('Copy PGN', style: TextStyle(color: Colors.white)),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'fen',
+                child: Row(
+                  children: [
+                    Icon(Icons.code, size: 16, color: Colors.white70),
+                    SizedBox(width: 8),
+                    Text('Copy FEN', style: TextStyle(color: Colors.white)),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ],
       ),
       body: matchAsync.when(
@@ -344,6 +507,17 @@ class _GameBoardViewState extends ConsumerState<GameBoardView> {
               ref.read(gameStateNotifierProvider.notifier).getActiveKingSquare();
 
           final boardMap = _parseFenToBoardMap(match.currentFen);
+          final material = MaterialScore.fromFen(match.currentFen);
+          final playerCaptured = isPlayerWhite
+              ? material.whiteCapturedPieces
+              : material.blackCapturedPieces;
+          final opponentCaptured = isPlayerWhite
+              ? material.blackCapturedPieces
+              : material.whiteCapturedPieces;
+          final playerAdvantage =
+              isPlayerWhite ? material.whiteAdvantage : material.blackAdvantage;
+          final opponentAdvantage =
+              isPlayerWhite ? material.blackAdvantage : material.whiteAdvantage;
 
           return SafeArea(
             child: SingleChildScrollView(
@@ -418,13 +592,40 @@ class _GameBoardViewState extends ConsumerState<GameBoardView> {
                         ),
                       ),
 
-                    // Chess Board: 3D or 2D
+                    // Reaction Floating Banner
+                    if (_activeReaction != null)
+                      Container(
+                        margin: const EdgeInsets.only(bottom: 8),
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: BoardThemes.surfaceCard,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: BoardThemes.accentCyan),
+                          boxShadow: const [BoxShadow(color: Colors.black45, blurRadius: 10)],
+                        ),
+                        child: Text(
+                          _activeReaction!,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+
+                    // Top Opponent Captured Pieces Tray
+                    _buildCapturedTray(opponentCaptured, opponentAdvantage, !isPlayerWhite),
+                    const SizedBox(height: 6),
+
+                    // Chess Board: 3D or 2D with Live Evaluation Bar
                     LayoutBuilder(
                       builder: (context, constraints) {
-                        final boardSize = constraints.maxWidth.clamp(280.0, 520.0);
+                        final availableWidth = constraints.maxWidth - 34.0;
+                        final boardSize = availableWidth.clamp(260.0, 500.0);
 
+                        Widget boardWidget;
                         if (_renderMode == BoardRenderMode.threeD) {
-                          return Container(
+                          boardWidget = Container(
                             width: boardSize,
                             height: boardSize * 1.1,
                             decoration: BoxDecoration(
@@ -469,82 +670,122 @@ class _GameBoardViewState extends ConsumerState<GameBoardView> {
                               ),
                             ),
                           );
+                        } else {
+                          boardWidget = Container(
+                            width: boardSize,
+                            height: boardSize,
+                            decoration: BoxDecoration(
+                              border: Border.all(color: BoardThemes.borderSubtle, width: 3),
+                              borderRadius: BorderRadius.circular(8),
+                              boxShadow: const [
+                                BoxShadow(
+                                  color: Colors.black45,
+                                  blurRadius: 16,
+                                  offset: Offset(0, 6),
+                                ),
+                              ],
+                            ),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(5),
+                              child: GridView.builder(
+                                physics: const NeverScrollableScrollPhysics(),
+                                gridDelegate:
+                                    const SliverGridDelegateWithFixedCrossAxisCount(
+                                  crossAxisCount: 8,
+                                ),
+                                itemCount: 64,
+                                itemBuilder: (context, index) {
+                                  final effectiveIndex =
+                                      _isBoardFlipped ? (63 - index) : index;
+                                  final sq = BoardSquareWidget.indexToSquare(effectiveIndex);
+                                  final pieceChar = boardMap[effectiveIndex];
+
+                                  final isSelected = _selectedSquare == sq;
+                                  final isLegalTarget = _legalDestinations.contains(sq);
+                                  final isCapture = isLegalTarget && pieceChar != null;
+                                  final isKingChecked =
+                                      isKingInCheck && kingSquare == sq;
+                                  final isFrom = _lastMoveFrom == sq;
+                                  final isTo = _lastMoveTo == sq;
+
+                                  return BoardSquareWidget(
+                                    linearIndex: index,
+                                    isFlipped: _isBoardFlipped,
+                                    pieceChar: pieceChar,
+                                    isSelected: isSelected,
+                                    isLegalTarget: isLegalTarget,
+                                    isCaptureTarget: isCapture,
+                                    isKingInCheck: isKingChecked,
+                                    isLastMoveFrom: isFrom,
+                                    isLastMoveTo: isTo,
+                                    canDragPiece: match.isActive &&
+                                        pieceChar != null &&
+                                        ((match.activeTurn == 'w' &&
+                                                pieceChar == pieceChar.toUpperCase()) ||
+                                            (match.activeTurn == 'b' &&
+                                                pieceChar == pieceChar.toLowerCase())),
+                                    onTap: () => _onSquareTapped(sq, pieceChar, match),
+                                    onPieceDropped: (draggedPiece) {
+                                      if (_selectedSquare != null && _selectedSquare != sq) {
+                                        _processMoveAttempt(_selectedSquare!, sq, match);
+                                      }
+                                    },
+                                  );
+                                },
+                              ),
+                            ),
+                          );
                         }
 
-                        // 2D Board Canvas
-                        return Container(
-                          width: boardSize,
-                          height: boardSize,
-                          decoration: BoxDecoration(
-                            border: Border.all(color: BoardThemes.borderSubtle, width: 3),
-                            borderRadius: BorderRadius.circular(8),
-                            boxShadow: const [
-                              BoxShadow(
-                                color: Colors.black45,
-                                blurRadius: 16,
-                                offset: Offset(0, 6),
-                              ),
-                            ],
-                          ),
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(5),
-                            child: GridView.builder(
-                              physics: const NeverScrollableScrollPhysics(),
-                              gridDelegate:
-                                  const SliverGridDelegateWithFixedCrossAxisCount(
-                                crossAxisCount: 8,
-                              ),
-                              itemCount: 64,
-                              itemBuilder: (context, index) {
-                                final effectiveIndex =
-                                    _isBoardFlipped ? (63 - index) : index;
-                                final sq = BoardSquareWidget.indexToSquare(effectiveIndex);
-                                final pieceChar = boardMap[effectiveIndex];
-
-                                final isSelected = _selectedSquare == sq;
-                                final isLegalTarget = _legalDestinations.contains(sq);
-                                final isCapture = isLegalTarget && pieceChar != null;
-                                final isKingChecked =
-                                    isKingInCheck && kingSquare == sq;
-                                final isFrom = _lastMoveFrom == sq;
-                                final isTo = _lastMoveTo == sq;
-
-                                return BoardSquareWidget(
-                                  linearIndex: index,
-                                  isFlipped: _isBoardFlipped,
-                                  pieceChar: pieceChar,
-                                  isSelected: isSelected,
-                                  isLegalTarget: isLegalTarget,
-                                  isCaptureTarget: isCapture,
-                                  isKingInCheck: isKingChecked,
-                                  isLastMoveFrom: isFrom,
-                                  isLastMoveTo: isTo,
-                                  canDragPiece: match.isActive &&
-                                      pieceChar != null &&
-                                      ((match.activeTurn == 'w' &&
-                                              pieceChar == pieceChar.toUpperCase()) ||
-                                          (match.activeTurn == 'b' &&
-                                              pieceChar == pieceChar.toLowerCase())),
-                                  onTap: () => _onSquareTapped(sq, pieceChar, match),
-                                  onPieceDropped: (draggedPiece) {
-                                    if (_selectedSquare != null && _selectedSquare != sq) {
-                                      _processMoveAttempt(_selectedSquare!, sq, match);
-                                    }
-                                  },
-                                );
-                              },
+                        return Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: [
+                            EvaluationBar(
+                              centipawns: match.matchType == 'engine'
+                                  ? (isPlayerWhite
+                                      ? (material.whiteAdvantage * 100.0)
+                                      : (material.blackAdvantage * 100.0))
+                                  : (isPlayerWhite
+                                      ? (material.whiteAdvantage * 75.0)
+                                      : (material.blackAdvantage * 75.0)),
+                              isWhiteOrientation: !_isBoardFlipped,
+                              height: boardSize * (_renderMode == BoardRenderMode.threeD ? 1.1 : 1.0),
                             ),
-                          ),
+                            const SizedBox(width: 8),
+                            boardWidget,
+                          ],
                         );
                       },
                     ),
-                    const SizedBox(height: 16),
 
-                    // Controls Bar (Resign, Offer Draw)
+                    const SizedBox(height: 6),
+                    // Bottom Player Captured Pieces Tray
+                    _buildCapturedTray(playerCaptured, playerAdvantage, isPlayerWhite),
+                    const SizedBox(height: 14),
+
+                    // Controls Bar (Chat, Offer Draw, Resign)
                     if (match.isActive)
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                         children: [
+                          ElevatedButton.icon(
+                            onPressed: () {
+                              showModalBottomSheet(
+                                context: context,
+                                backgroundColor: Colors.transparent,
+                                builder: (context) => QuickChatModal(
+                                  onSelected: _onReactionSelected,
+                                ),
+                              );
+                            },
+                            icon: const Icon(Icons.chat_bubble_outline, size: 18),
+                            label: const Text('Chat'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: BoardThemes.surfaceCard,
+                              foregroundColor: Colors.white,
+                            ),
+                          ),
                           ElevatedButton.icon(
                             onPressed: () =>
                                 ref.read(gameStateNotifierProvider.notifier).offerDraw(),
