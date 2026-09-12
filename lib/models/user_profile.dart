@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'chess_grade.dart';
 
 /// Represents a persistent user profile with historical statistics, rating, and anti-cheat status.
 class UserProfile {
@@ -12,6 +13,9 @@ class UserProfile {
   final DateTime createdAt;
   final DateTime lastActiveAt;
   final bool isBanned;
+
+  /// Current chess skill grade derived from Elo rating.
+  ChessGrade get chessGrade => ChessGrade.fromElo(eloRating);
 
   const UserProfile({
     required this.uid,
@@ -59,6 +63,7 @@ class UserProfile {
       'uid': uid,
       'displayName': displayName,
       'eloRating': eloRating,
+      'chessGrade': chessGrade.name,
       'gamesPlayed': gamesPlayed,
       'wins': wins,
       'losses': losses,
