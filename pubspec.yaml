@@ -46,6 +46,7 @@ dependencies:
   flutter_svg: ^2.3.0
   shared_preferences: ^2.5.5
   audioplayers: ^6.8.1
+  sensors_plus: ^6.1.1
 
 dev_dependencies:
   flutter_test:
@@ -75,6 +76,15 @@ flutter:
     - assets/models/pieces/classic/
     - assets/images/
     - assets/sounds/
+    - assets/audio/move/
+    - assets/audio/capture/
+    - assets/audio/check/
+    - assets/audio/castle/
+    - assets/audio/promotion/
+    - assets/audio/game_start/
+    - assets/audio/game_end/
+    - assets/audio/low_time/
+    - assets/audio/ui_tap/
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images
