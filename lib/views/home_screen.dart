@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/constants/chess_constants.dart';
 import '../core/theme/board_themes.dart';
 import '../models/chess_match.dart';
+import '../models/chess_grade.dart';
 import '../models/user_profile.dart';
 import '../state/game_state_notifier.dart';
 import 'game_board/game_board_view.dart';
@@ -203,6 +204,186 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
   }
 
+  void _showGradeSelectionDialog() {
+    showDialog(
+      context: context,
+      builder: (dialogContext) {
+        final currentGrade = _userProfile != null
+            ? ChessGrade.fromElo(_userProfile!.eloRating)
+            : ChessGrade.intermediate;
+
+        return AlertDialog(
+          backgroundColor: BoardThemes.surfaceCard,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Row(
+            children: const [
+              Icon(Icons.workspace_premium, color: BoardThemes.accentGold),
+              SizedBox(width: 8),
+              Text(
+                'Select Chess Grade',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: ChessGrade.values.map((grade) {
+                  final isSelected = grade == currentGrade;
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 8),
+                    decoration: BoxDecoration(
+                      color: isSelected ? grade.color.withAlpha(35) : BoardThemes.surfaceDark,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: isSelected ? grade.color : BoardThemes.borderSubtle,
+                        width: isSelected ? 1.5 : 1,
+                      ),
+                    ),
+                    child: ListTile(
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                      leading: CircleAvatar(
+                        radius: 20,
+                        backgroundColor: grade.color.withAlpha(30),
+                        child: Text(
+                          grade.iconSymbol,
+                          style: TextStyle(fontSize: 20, color: grade.color),
+                        ),
+                      ),
+                      title: Row(
+                        children: [
+                          Text(
+                            grade.title,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 15,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: grade.color.withAlpha(30),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              '~${grade.elo} Elo',
+                              style: TextStyle(
+                                color: grade.color,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      subtitle: Text(
+                        grade.description,
+                        style: BoardThemes.bodyRegular.copyWith(fontSize: 11),
+                      ),
+                      trailing: isSelected
+                          ? Icon(Icons.check_circle, color: grade.color)
+                          : null,
+                      onTap: () async {
+                        if (_userProfile != null) {
+                          final updated = _userProfile!.copyWith(eloRating: grade.elo);
+                          await ref.read(firestoreServiceProvider).saveUserProfile(updated);
+                          if (mounted) {
+                            setState(() => _userProfile = updated);
+                          }
+                        }
+                        if (dialogContext.mounted) {
+                          Navigator.of(dialogContext).pop();
+                        }
+                      },
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Close', style: TextStyle(color: Colors.white70)),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildGradeEngineCard(ChessGrade grade) {
+    return InkWell(
+      onTap: () => _startEngineMatch(grade.stockfishSkill, grade.title),
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+        decoration: BoxDecoration(
+          color: BoardThemes.surfaceDark,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: grade.color.withAlpha(80)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  grade.iconSymbol,
+                  style: TextStyle(fontSize: 22, color: grade.color),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: grade.color.withAlpha(30),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    'Lvl ${grade.stockfishSkill}',
+                    style: TextStyle(
+                      color: grade.color,
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              grade.title,
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              '${grade.elo} Elo',
+              style: TextStyle(
+                color: grade.color,
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -366,13 +547,18 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                           children: [
                             Row(
                               children: [
-                                CircleAvatar(
-                                  radius: 26,
-                                  backgroundColor: BoardThemes.accentCyan.withAlpha(40),
-                                  child: const Text(
-                                    '♟',
-                                    style: TextStyle(fontSize: 28, color: BoardThemes.accentCyan),
-                                  ),
+                                Builder(
+                                  builder: (context) {
+                                    final currentGrade = ChessGrade.fromElo(_userProfile!.eloRating);
+                                    return CircleAvatar(
+                                      radius: 26,
+                                      backgroundColor: currentGrade.color.withAlpha(30),
+                                      child: Text(
+                                        currentGrade.iconSymbol,
+                                        style: TextStyle(fontSize: 26, color: currentGrade.color),
+                                      ),
+                                    );
+                                  },
                                 ),
                                 const SizedBox(width: 14),
                                 Column(
@@ -396,13 +582,51 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                         ),
                                       ],
                                     ),
-                                    Text(
-                                      '${_userProfile!.eloRating} Elo Rating',
-                                      style: const TextStyle(
-                                        color: BoardThemes.accentGold,
-                                        fontWeight: FontWeight.w700,
-                                        fontSize: 13,
-                                      ),
+                                    const SizedBox(height: 3),
+                                    Builder(
+                                      builder: (context) {
+                                        final currentGrade = ChessGrade.fromElo(_userProfile!.eloRating);
+                                        return Row(
+                                          children: [
+                                            Text(
+                                              '${_userProfile!.eloRating} Elo',
+                                              style: const TextStyle(
+                                                color: BoardThemes.accentGold,
+                                                fontWeight: FontWeight.w700,
+                                                fontSize: 13,
+                                              ),
+                                            ),
+                                            const SizedBox(width: 8),
+                                            InkWell(
+                                              onTap: _showGradeSelectionDialog,
+                                              borderRadius: BorderRadius.circular(10),
+                                              child: Container(
+                                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                                decoration: BoxDecoration(
+                                                  color: currentGrade.color.withAlpha(30),
+                                                  borderRadius: BorderRadius.circular(10),
+                                                  border: Border.all(color: currentGrade.color.withAlpha(120)),
+                                                ),
+                                                child: Row(
+                                                  mainAxisSize: MainAxisSize.min,
+                                                  children: [
+                                                    Text(
+                                                      currentGrade.title,
+                                                      style: TextStyle(
+                                                        color: currentGrade.color,
+                                                        fontWeight: FontWeight.bold,
+                                                        fontSize: 11,
+                                                      ),
+                                                    ),
+                                                    const SizedBox(width: 3),
+                                                    Icon(Icons.expand_more, size: 12, color: currentGrade.color),
+                                                  ],
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        );
+                                      },
                                     ),
                                   ],
                                 ),
@@ -482,36 +706,21 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     const SizedBox(height: 12),
                     Row(
                       children: [
-                        Expanded(
-                          child: _buildModeCard(
-                            title: 'Casual',
-                            time: 'Level 3',
-                            icon: Icons.smart_toy_outlined,
-                            accent: BoardThemes.accentEmerald,
-                            onTap: () => _startEngineMatch(ChessConstants.engineEasySkill, 'Easy'),
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: _buildModeCard(
-                            title: 'Advanced',
-                            time: 'Level 10',
-                            icon: Icons.psychology,
-                            accent: BoardThemes.accentGold,
-                            onTap: () =>
-                                _startEngineMatch(ChessConstants.engineMediumSkill, 'Medium'),
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: _buildModeCard(
-                            title: 'Master',
-                            time: 'Level 20',
-                            icon: Icons.military_tech,
-                            accent: BoardThemes.accentRose,
-                            onTap: () => _startEngineMatch(ChessConstants.engineHardSkill, 'Hard'),
-                          ),
-                        ),
+                        Expanded(child: _buildGradeEngineCard(ChessGrade.beginner)),
+                        const SizedBox(width: 8),
+                        Expanded(child: _buildGradeEngineCard(ChessGrade.novice)),
+                        const SizedBox(width: 8),
+                        Expanded(child: _buildGradeEngineCard(ChessGrade.intermediate)),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Expanded(child: _buildGradeEngineCard(ChessGrade.advanced)),
+                        const SizedBox(width: 8),
+                        Expanded(child: _buildGradeEngineCard(ChessGrade.master)),
+                        const SizedBox(width: 8),
+                        Expanded(child: _buildGradeEngineCard(ChessGrade.grandmaster)),
                       ],
                     ),
                     const SizedBox(height: 28),
