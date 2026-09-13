@@ -225,9 +225,9 @@ To prevent micro-stutters during deep engine searches (up to 20 plies), Stockfis
    Where $\mathbf{U}, \mathbf{V}, \mathbf{W}$ are camera orthonormal basis vectors and $f$ is focal length.
 
 3. **Board Plane Collision**:
-   The board lies on the horizontal plane $Z = 0$. The ray intersection parameter $t$ satisfies:
-   $$\mathbf{P}_z = \mathbf{O}_z + t \cdot \mathbf{D}_z = 0 \implies t = -\frac{\mathbf{O}_z}{\mathbf{D}_z}$$
-   $$\mathbf{P}_{\text{board}} = \mathbf{O} + t \cdot \mathbf{D} = \begin{pmatrix} x_b \\ y_b \\ 0 \end{pmatrix}$$
+   The board lies on the horizontal plane Z=0. The ray intersection parameter t satisfies:
+   $$\mathbf{P}_z = \mathbf{O}_z + t \cdot \mathbf{D}_z = 0 \implies t = -\frac{\mathbf{O}_z}{\mathbf{D}z}$$ 
+   $$\mathbf{P}{\text{board}} = \mathbf{O} + t \cdot \mathbf{D} = \begin{pmatrix} x_b \ y_b \ 0 \end{pmatrix}$$
 
 4. **Coordinate Mapping**:
    $$\text{File} = \left\lfloor \frac{x_b + 4 \cdot S}{S} \right\rfloor \in [0, 7], \qquad \text{Rank} = \left\lfloor \frac{y_b + 4 \cdot S}{S} \right\rfloor \in [0, 7]$$
