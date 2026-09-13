@@ -52,8 +52,8 @@ class PgnService {
 
     if (whiteElo != null) buffer.writeln('[WhiteElo "$whiteElo"]');
     if (blackElo != null) buffer.writeln('[BlackElo "$blackElo"]');
-    if (match.whiteMillisRemaining > 0) {
-      buffer.writeln('[TimeControl "${match.whiteMillisRemaining ~/ 1000}"]');
+    if (match.isTimedMatch && match.whiteMillisRemaining != null && match.whiteMillisRemaining! > 0) {
+      buffer.writeln('[TimeControl "${match.whiteMillisRemaining! ~/ 1000}"]');
     }
     buffer.writeln();
 
