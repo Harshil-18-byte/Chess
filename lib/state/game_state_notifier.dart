@@ -332,6 +332,8 @@ class GameStateNotifier extends AsyncNotifier<ChessMatch> {
         isCheckmate: isCheckmate,
         newStatus: newStatus,
         clientMoveId: clientMoveId,
+        fromSquare: from,
+        toSquare: to,
         updatedHalfmoveClock: updatedHalfmoveClock,
         promotionPiece: promo,
       );
