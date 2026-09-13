@@ -20,6 +20,10 @@ service cloud.firestore {
       return field == request.time;
     }
 
+    function isLastMoveTimestampValid(reqData) {
+      return isServerTimestamp(reqData.lastMoveServerTimestamp);
+    }
+
     // ==========================================
     // USER PROFILES
     // ==========================================
@@ -65,12 +69,13 @@ service cloud.firestore {
         request.resource.data.status == 'active' &&
         request.resource.data.activeTurn == 'w' &&
         isServerTimestamp(request.resource.data.createdAt) &&
-        isServerTimestamp(request.resource.data.lastMoveServerTimestamp);
+        isLastMoveTimestampValid(request.resource.data);
 
       // Match update (Move submission, resignation, draw, timeout):
       allow update: if isAuthenticated() &&
         isMatchParticipant(resource.data) &&
-        isServerTimestamp(request.resource.data.lastMoveServerTimestamp) &&
+        isLastMoveTimestampValid(request.resource.data) &&
+        request.resource.data.isTimedMatch == resource.data.isTimedMatch &&
         // Turn-matching verification against the EXISTING resource data
         (
           // Case A: Submitting a valid move on player's turn
@@ -83,8 +88,8 @@ service cloud.firestore {
           (request.resource.data.status == 'resignation') ||
           // Case C: Offering or responding to draw
           (request.resource.data.drawOfferedBy != resource.data.drawOfferedBy) ||
-          // Case D: Claiming verified timeout
-          (request.resource.data.status == 'whiteTimeout' || request.resource.data.status == 'blackTimeout')
+          // Case D: Claiming verified timeout or abandonment
+          (request.resource.data.status == 'whiteTimeout' || request.resource.data.status == 'blackTimeout' || request.resource.data.status == 'abandoned')
         );
 
       allow delete: if false; // Matches cannot be deleted by clients
