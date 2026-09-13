@@ -129,7 +129,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                             ),
                           ),
                           Text(
-                            'Type: ${widget.match.matchType} | Total Moves: ${_moves.length}',
+                            'Type: ${widget.match.matchType} | Time: ${widget.match.isTimedMatch ? (widget.match.timeControlPreset ?? "Timed") : "Untimed"}',
                             style: BoardThemes.bodyRegular.copyWith(fontSize: 12),
                           ),
                         ],
