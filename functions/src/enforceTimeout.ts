@@ -27,6 +27,9 @@ export const claimTimeout = functions.https.onCall(async (data, context) => {
     }
 
     const match = snap.data()!;
+    if (!match.isTimedMatch) {
+      throw new functions.https.HttpsError('failed-precondition', 'Match is not a timed match.');
+    }
     if (match.status !== 'active') {
       throw new functions.https.HttpsError('failed-precondition', 'Match is not active.');
     }
@@ -84,6 +87,7 @@ export const scheduledTimeoutSweeper = functions.pubsub
     const activeMatchesSnap = await db
       .collection('matches')
       .where('status', '==', 'active')
+      .where('isTimedMatch', '==', true)
       .limit(50)
       .get();
 
