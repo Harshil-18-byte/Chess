@@ -29,10 +29,14 @@ class ChessMatch {
   final String currentFen;
   final MatchStatus status;
   final String activeTurn; // 'w' or 'b'
-  final int whiteMillisRemaining;
-  final int blackMillisRemaining;
-  final DateTime lastMoveServerTimestamp;
+  final bool isTimedMatch;
+  final int? whiteMillisRemaining;
+  final int? blackMillisRemaining;
+  final DateTime? lastMoveServerTimestamp;
   final DateTime createdAt;
+  final String? timeControlPreset; // bullet, blitz, rapid, classical, custom, none
+  final int? initialMinutes;
+  final int? incrementSeconds;
   final String matchType; // 'human' or 'engine'
   final int? engineDifficulty;
   final int moveCount;
@@ -51,10 +55,14 @@ class ChessMatch {
     required this.currentFen,
     required this.status,
     required this.activeTurn,
-    required this.whiteMillisRemaining,
-    required this.blackMillisRemaining,
-    required this.lastMoveServerTimestamp,
+    this.isTimedMatch = true,
+    this.whiteMillisRemaining,
+    this.blackMillisRemaining,
+    this.lastMoveServerTimestamp,
     required this.createdAt,
+    this.timeControlPreset,
+    this.initialMinutes,
+    this.incrementSeconds,
     required this.matchType,
     this.engineDifficulty,
     this.moveCount = 0,
@@ -111,11 +119,15 @@ class ChessMatch {
       currentFen: json['currentFen'] as String? ?? '',
       status: parseStatus(json['status'] as String?),
       activeTurn: json['activeTurn'] as String? ?? 'w',
-      whiteMillisRemaining: (json['whiteMillisRemaining'] as num?)?.toInt() ?? 600000,
-      blackMillisRemaining: (json['blackMillisRemaining'] as num?)?.toInt() ?? 600000,
-      lastMoveServerTimestamp: parseDateTime(json['lastMoveServerTimestamp']),
+      isTimedMatch: json['isTimedMatch'] as bool? ?? true,
+      whiteMillisRemaining: (json['whiteMillisRemaining'] as num?)?.toInt(),
+      blackMillisRemaining: (json['blackMillisRemaining'] as num?)?.toInt(),
+      lastMoveServerTimestamp: json['lastMoveServerTimestamp'] != null ? parseDateTime(json['lastMoveServerTimestamp']) : null,
       createdAt: parseDateTime(json['createdAt']),
       matchType: json['matchType'] as String? ?? 'human',
+      timeControlPreset: json['timeControlPreset'] as String?,
+      initialMinutes: (json['initialMinutes'] as num?)?.toInt(),
+      incrementSeconds: (json['incrementSeconds'] as num?)?.toInt(),
       engineDifficulty: (json['engineDifficulty'] as num?)?.toInt(),
       moveCount: (json['moveCount'] as num?)?.toInt() ?? 0,
       positionHistory: parseStringList(json['positionHistory']),
@@ -137,10 +149,14 @@ class ChessMatch {
       'currentFen': currentFen,
       'status': status.name,
       'activeTurn': activeTurn,
+      'isTimedMatch': isTimedMatch,
       'whiteMillisRemaining': whiteMillisRemaining,
       'blackMillisRemaining': blackMillisRemaining,
-      'lastMoveServerTimestamp': Timestamp.fromDate(lastMoveServerTimestamp),
+      'lastMoveServerTimestamp': lastMoveServerTimestamp != null ? Timestamp.fromDate(lastMoveServerTimestamp!) : null,
       'createdAt': Timestamp.fromDate(createdAt),
+      'timeControlPreset': timeControlPreset,
+      'initialMinutes': initialMinutes,
+      'incrementSeconds': incrementSeconds,
       'matchType': matchType,
       'engineDifficulty': engineDifficulty,
       'moveCount': moveCount,
@@ -162,10 +178,14 @@ class ChessMatch {
     String? currentFen,
     MatchStatus? status,
     String? activeTurn,
+    bool? isTimedMatch,
     int? whiteMillisRemaining,
     int? blackMillisRemaining,
     DateTime? lastMoveServerTimestamp,
     DateTime? createdAt,
+    String? timeControlPreset,
+    int? initialMinutes,
+    int? incrementSeconds,
     String? matchType,
     int? engineDifficulty,
     int? moveCount,
@@ -184,11 +204,15 @@ class ChessMatch {
       currentFen: currentFen ?? this.currentFen,
       status: status ?? this.status,
       activeTurn: activeTurn ?? this.activeTurn,
+      isTimedMatch: isTimedMatch ?? this.isTimedMatch,
       whiteMillisRemaining: whiteMillisRemaining ?? this.whiteMillisRemaining,
       blackMillisRemaining: blackMillisRemaining ?? this.blackMillisRemaining,
       lastMoveServerTimestamp:
           lastMoveServerTimestamp ?? this.lastMoveServerTimestamp,
       createdAt: createdAt ?? this.createdAt,
+      timeControlPreset: timeControlPreset ?? this.timeControlPreset,
+      initialMinutes: initialMinutes ?? this.initialMinutes,
+      incrementSeconds: incrementSeconds ?? this.incrementSeconds,
       matchType: matchType ?? this.matchType,
       engineDifficulty: engineDifficulty ?? this.engineDifficulty,
       moveCount: moveCount ?? this.moveCount,
@@ -214,9 +238,13 @@ class ChessMatch {
           currentFen == other.currentFen &&
           status == other.status &&
           activeTurn == other.activeTurn &&
+          isTimedMatch == other.isTimedMatch &&
           whiteMillisRemaining == other.whiteMillisRemaining &&
           blackMillisRemaining == other.blackMillisRemaining &&
           matchType == other.matchType &&
+          timeControlPreset == other.timeControlPreset &&
+          initialMinutes == other.initialMinutes &&
+          incrementSeconds == other.incrementSeconds &&
           moveCount == other.moveCount &&
           halfmoveClock == other.halfmoveClock &&
           engineDifficulty == other.engineDifficulty &&
@@ -231,9 +259,13 @@ class ChessMatch {
       currentFen.hashCode ^
       status.hashCode ^
       activeTurn.hashCode ^
+      isTimedMatch.hashCode ^
       whiteMillisRemaining.hashCode ^
       blackMillisRemaining.hashCode ^
       matchType.hashCode ^
+      (timeControlPreset?.hashCode ?? 0) ^
+      (initialMinutes?.hashCode ?? 0) ^
+      (incrementSeconds?.hashCode ?? 0) ^
       moveCount.hashCode ^
       halfmoveClock.hashCode ^
       (engineDifficulty?.hashCode ?? 0) ^
