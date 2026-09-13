@@ -216,32 +216,41 @@ To prevent micro-stutters during deep engine searches (up to 20 plies), Stockfis
 
 ### Mathematical Formulation of Raycasting
 
-1. **Camera Position Vector $\mathbf{C}$**:
-   $$
-   \mathbf{C}(\theta, \phi, R) = \begin{pmatrix} R \cdot \cos\theta \sin\phi \\\\ R \cdot \sin\theta \\\\ R \cdot \cos\theta \cos\phi \end{pmatrix}
-   $$
-   Where $\theta \in [0.2, 1.4]$ radians is camera pitch, $\phi \in [-\pi, \pi]$ is yaw, and $R$ is camera orbit distance.
+**1. Camera Position Vector $\mathbf{C}$**:
 
-2. **Ray Direction Vector $\mathbf{D}$**:
-   $$
-   \mathbf{D} = \text{Normalize}\left( u \cdot \mathbf{U} + v \cdot \mathbf{V} + f \cdot \mathbf{W} \right)
-   $$
-   Where $\mathbf{U}, \mathbf{V}, \mathbf{W}$ are camera orthonormal basis vectors and $f$ is focal length.
+$$
+\mathbf{C}(\theta, \phi, R) = \begin{pmatrix} R \cdot \cos\theta \sin\phi \\ R \cdot \sin\theta \\ R \cdot \cos\theta \cos\phi \end{pmatrix}
+$$
 
-3. **Board Plane Collision**:
-   The board lies on the horizontal plane $Z = 0$. The ray intersection parameter $t$ satisfies:
-   $$
-   \mathbf{P}_z = \mathbf{O}_z + t \cdot \mathbf{D}_z = 0 \implies t = -\frac{\mathbf{O}_z}{\mathbf{D}_z}
-   $$
-   $$
-   \mathbf{P}_{\text{board}} = \mathbf{O} + t \cdot \mathbf{D} = \begin{pmatrix} x_b \\\\ y_b \\\\ 0 \end{pmatrix}
-   $$
+Where $\theta \in [0.2, 1.4]$ radians is camera pitch, $\phi \in [-\pi, \pi]$ is yaw, and $R$ is camera orbit distance.
 
-4. **Coordinate Mapping**:
-   $$
-   \text{File} = \left\lfloor \frac{x_b + 4 \cdot S}{S} \right\rfloor \in [0, 7], \qquad \text{Rank} = \left\lfloor \frac{y_b + 4 \cdot S}{S} \right\rfloor \in [0, 7]
-   $$
-   Mapped to algebraic notation: $\text{Square} = \text{String.fromCharCode}(97 + \text{File}) + (1 + \text{Rank})$.
+**2. Ray Direction Vector $\mathbf{D}$**:
+
+$$
+\mathbf{D} = \text{Normalize}\left( u \cdot \mathbf{U} + v \cdot \mathbf{V} + f \cdot \mathbf{W} \right)
+$$
+
+Where $\mathbf{U}, \mathbf{V}, \mathbf{W}$ are camera orthonormal basis vectors and $f$ is focal length.
+
+**3. Board Plane Collision**:
+
+The board lies on the horizontal plane $Z = 0$. The ray intersection parameter $t$ satisfies:
+
+$$
+\mathbf{P}_z = \mathbf{O}_z + t \cdot \mathbf{D}_z = 0 \implies t = -\frac{\mathbf{O}_z}{\mathbf{D}_z}
+$$
+
+$$
+\mathbf{P}_{\text{board}} = \mathbf{O} + t \cdot \mathbf{D} = \begin{pmatrix} x_b \\ y_b \\ 0 \end{pmatrix}
+$$
+
+**4. Coordinate Mapping**:
+
+$$
+\text{File} = \left\lfloor \frac{x_b + 4 \cdot S}{S} \right\rfloor \in [0, 7], \qquad \text{Rank} = \left\lfloor \frac{y_b + 4 \cdot S}{S} \right\rfloor \in [0, 7]
+$$
+
+Mapped to algebraic notation: $\text{Square} = \text{String.fromCharCode}(97 + \text{File}) + (1 + \text{Rank})$.
 
 ---
 
