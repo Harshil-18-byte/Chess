@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:chess/chess.dart' as chess_lib;
 import '../../core/rules/material_calculator.dart';
@@ -8,14 +9,18 @@ import '../../core/theme/liquid_glass.dart';
 import '../../models/chess_match.dart';
 import '../../services/audio_service.dart';
 import '../../services/pgn_service.dart';
+import '../../services/live_drag_service.dart';
+import '../../services/settings_service.dart';
 import '../../state/game_state_notifier.dart';
 import 'widgets/board_square.dart';
 import 'widgets/game_clock.dart';
 import 'widgets/evaluation_bar.dart';
 import 'widgets/quick_chat_modal.dart';
+import 'widgets/chess_piece.dart';
 import 'board_3d/chess_scene_controller.dart';
 import 'board_3d/move_animation_controller.dart';
 import 'board_3d/board_3d_view.dart';
+import '../widgets/loading_overlay.dart';
 
 /// Interactive chess board supporting both high-performance 2D and perspective 3D rendering with live fallback.
 class GameBoardView extends ConsumerStatefulWidget {
@@ -36,12 +41,13 @@ class _GameBoardViewState extends ConsumerState<GameBoardView> {
   bool _isBoardFlipped = false;
   String? _lastMoveFrom;
   String? _lastMoveTo;
-  BoardRenderMode _renderMode = BoardRenderMode.twoD;
   String? _activeReaction;
-  bool _isAudioMuted = false;
 
   late ChessSceneController _sceneController;
   late MoveAnimationController _moveAnimationController;
+  final GlobalKey _boardKey = GlobalKey();
+
+  DatabaseReference? _presenceRef;
 
   @override
   void initState() {
@@ -51,12 +57,19 @@ class _GameBoardViewState extends ConsumerState<GameBoardView> {
 
     // Activate match subscription in Riverpod notifier
     Future.microtask(() {
+      final currentUid = ref.read(authServiceProvider).currentUid;
+      if (currentUid.isNotEmpty) {
+        _presenceRef = FirebaseDatabase.instance.ref('presence/\${widget.matchId}/$currentUid');
+        _presenceRef!.set(true);
+        _presenceRef!.onDisconnect().remove();
+      }
       ref.read(gameStateNotifierProvider.notifier).setActiveMatch(widget.matchId);
     });
   }
 
   @override
   void dispose() {
+    _presenceRef?.remove();
     _sceneController.dispose();
     _moveAnimationController.dispose();
     super.dispose();
@@ -132,6 +145,20 @@ class _GameBoardViewState extends ConsumerState<GameBoardView> {
     });
   }
 
+  void _onPieceDragUpdate(String fromSquare, DragUpdateDetails details) {
+    if (_boardKey.currentContext == null) return;
+    final RenderBox box = _boardKey.currentContext!.findRenderObject() as RenderBox;
+    final localPos = box.globalToLocal(details.globalPosition);
+    final currentUid = ref.read(authServiceProvider).currentUid;
+    final x = (localPos.dx / box.size.width).clamp(0.0, 1.0);
+    final y = (localPos.dy / box.size.height).clamp(0.0, 1.0);
+    ref.read(liveDragServiceProvider).updateDrag(widget.matchId, currentUid, fromSquare, x, y);
+  }
+
+  void _onPieceDragEnd(String fromSquare) {
+    ref.read(liveDragServiceProvider).clearDrag(widget.matchId);
+  }
+
   Future<void> _processMoveAttempt(
     String from,
     String to,
@@ -153,7 +180,7 @@ class _GameBoardViewState extends ConsumerState<GameBoardView> {
       _lastMoveFrom = from;
       _lastMoveTo = to;
 
-      if (_renderMode == BoardRenderMode.threeD && piece != null) {
+      if (ref.read(render3dProvider) && piece != null) {
         final movingPieceChar = piece.color == chess_lib.Color.WHITE
             ? piece.type.name.toUpperCase()
             : piece.type.name.toLowerCase();
@@ -334,7 +361,7 @@ class _GameBoardViewState extends ConsumerState<GameBoardView> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  OutlinedButton.icon(
+                  OutlinedButton(
                     onPressed: () async {
                       final moves = ref.read(matchMovesProvider(widget.matchId)).value ?? [];
                       final pgn = PgnService.generatePgn(
@@ -346,13 +373,12 @@ class _GameBoardViewState extends ConsumerState<GameBoardView> {
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(
                             content: Text('PGN copied to clipboard!'),
-                            backgroundColor: BoardThemes.accentEmerald,
+                            backgroundColor: BoardThemes.pureWhite, // Switched to greyscale
                           ),
                         );
                       }
                     },
-                    icon: const Icon(Icons.copy, size: 16, color: BoardThemes.accentCyan),
-                    label: const Text('Copy PGN', style: TextStyle(color: BoardThemes.accentCyan)),
+                    child: const Text('[COPY PGN]', style: TextStyle(color: BoardThemes.pureWhite)), // No icons
                   ),
                   const SizedBox(width: 10),
                   ElevatedButton(
@@ -378,9 +404,28 @@ class _GameBoardViewState extends ConsumerState<GameBoardView> {
 
   @override
   Widget build(BuildContext context) {
+    // Automatically show the game over dialog when the match transitions to inactive.
+    ref.listen<AsyncValue<ChessMatch>>(gameStateNotifierProvider, (previous, next) {
+      final prevMatch = previous?.value;
+      final nextMatch = next.value;
+      if (prevMatch != null && nextMatch != null) {
+        if (prevMatch.isActive && !nextMatch.isActive) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) {
+              _showGameOverDialog(nextMatch);
+            }
+          });
+        }
+      }
+    });
+
     final matchAsync = ref.watch(gameStateNotifierProvider);
     final movesAsync = ref.watch(matchMovesProvider(widget.matchId));
+    final ghostStateAsync = ref.watch(liveDragStreamProvider(widget.matchId));
     final currentUid = ref.read(authServiceProvider).currentUid;
+    
+    final render3d = ref.watch(render3dProvider);
+    final audioService = ref.watch(audioServiceProvider);
 
     return Scaffold(
       backgroundColor: BoardThemes.scaffoldBackground,
@@ -394,23 +439,19 @@ class _GameBoardViewState extends ConsumerState<GameBoardView> {
         actions: [
           // ── Sound toggle chip ─────────────────────────────────────────
           _AppBarChip(
-            label: _isAudioMuted ? 'Sound Off' : 'Sound',
-            active: !_isAudioMuted,
+            label: audioService.isMuted ? 'Sound Off' : 'Sound',
+            active: !audioService.isMuted,
             onTap: () {
-              ref.read(audioServiceProvider).toggleMute();
-              setState(() => _isAudioMuted = !_isAudioMuted);
+              audioService.toggleMute();
+              setState(() {}); // Re-render the chip
             },
           ),
           // ── 2D / 3D toggle chip ───────────────────────────────────────
           _AppBarChip(
-            label: _renderMode == BoardRenderMode.threeD ? '3D' : '2D',
+            label: render3d ? '3D' : '2D',
             active: true,
             onTap: () {
-              setState(() {
-                _renderMode = _renderMode == BoardRenderMode.threeD
-                    ? BoardRenderMode.twoD
-                    : BoardRenderMode.threeD;
-              });
+              ref.read(render3dProvider.notifier).setRender3d(!render3d);
             },
           ),
           // ── Flip board chip ───────────────────────────────────────────
@@ -481,9 +522,7 @@ class _GameBoardViewState extends ConsumerState<GameBoardView> {
         ],
       ),
       body: matchAsync.when(
-        loading: () => const Center(
-          child: CircularProgressIndicator(color: BoardThemes.accentCyan),
-        ),
+        loading: () => const LoadingOverlay(message: 'LOADING MATCH'),
         error: (err, stack) => Center(
           child: Text(
             'Error loading match: $err',
@@ -516,28 +555,48 @@ class _GameBoardViewState extends ConsumerState<GameBoardView> {
                 padding: const EdgeInsets.all(12.0),
                 child: Column(
                   children: [
-                    // Top Clock Bar
-                    LiquidGlassContainer(
-                      padding: const EdgeInsets.all(10),
-                      margin: const EdgeInsets.only(bottom: 12),
-                      borderRadius: BorderRadius.circular(16),
-                      child: GameClockWidget(
-                        whiteMillisRemaining: match.whiteMillisRemaining,
-                        blackMillisRemaining: match.blackMillisRemaining,
-                        activeTurn: match.activeTurn,
-                        isMatchActive: match.isActive,
-                        playerName: isPlayerWhite ? 'You (White)' : 'You (Black)',
-                        opponentName: match.matchType == 'engine'
-                            ? 'Stockfish (Lv ${match.engineDifficulty ?? 10})'
-                            : (isPlayerWhite ? 'Opponent (Black)' : 'Opponent (White)'),
-                        playerColor: isPlayerWhite ? 'w' : 'b',
-                        onTimeout: () {
-                          ref
-                              .read(gameStateNotifierProvider.notifier)
-                              .claimTimeout(match.activeTurn);
-                        },
+                    // Top Clock Bar (Conditional)
+                    if (match.isTimedMatch && match.whiteMillisRemaining != null && match.blackMillisRemaining != null)
+                      LiquidGlassContainer(
+                        padding: const EdgeInsets.all(10),
+                        margin: const EdgeInsets.only(bottom: 12),
+                        borderRadius: BorderRadius.circular(16),
+                        child: Column(
+                          children: [
+                            if (match.timeControlPreset != null) ...[
+                              Text(
+                                match.timeControlPreset!,
+                                style: const TextStyle(color: Colors.white70, fontSize: 12),
+                              ),
+                              const SizedBox(height: 8),
+                            ],
+                            GameClockWidget(
+                              whiteMillisRemaining: match.whiteMillisRemaining!,
+                              blackMillisRemaining: match.blackMillisRemaining!,
+                              activeTurn: match.activeTurn,
+                              isMatchActive: match.isActive,
+                              playerName: isPlayerWhite ? 'You (White)' : 'You (Black)',
+                              opponentName: match.matchType == 'engine'
+                                  ? 'Stockfish (Lv ${match.engineDifficulty ?? 10})'
+                                  : (isPlayerWhite ? 'Opponent (Black)' : 'Opponent (White)'),
+                              playerColor: isPlayerWhite ? 'w' : 'b',
+                              onTimeout: () {
+                                ref
+                                    .read(gameStateNotifierProvider.notifier)
+                                    .claimTimeout(match.activeTurn);
+                              },
+                            ),
+                          ],
+                        ),
+                      )
+                    else 
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: Text(
+                          'Untimed Match',
+                          style: BoardThemes.bodyRegular.copyWith(color: Colors.white70),
+                        ),
                       ),
-                    ),
 
                     // Draw Offer Notification Banner
                     if (match.drawOfferedBy != null &&
@@ -619,7 +678,7 @@ class _GameBoardViewState extends ConsumerState<GameBoardView> {
                         final boardSize = availableWidth.clamp(260.0, 500.0);
 
                         Widget boardWidget;
-                        if (_renderMode == BoardRenderMode.threeD) {
+                        if (render3d) {
                           boardWidget = Container(
                             width: boardSize,
                             height: boardSize * 1.1,
@@ -648,9 +707,7 @@ class _GameBoardViewState extends ConsumerState<GameBoardView> {
                                 sceneController: _sceneController,
                                 animationController: _moveAnimationController,
                                 onFallbackTo2D: () {
-                                  setState(() {
-                                    _renderMode = BoardRenderMode.twoD;
-                                  });
+                                  ref.read(render3dProvider.notifier).setRender3d(false);
                                 },
                                 onSquareTap: (square) {
                                   final chess = chess_lib.Chess.fromFEN(match.currentFen);
@@ -666,7 +723,9 @@ class _GameBoardViewState extends ConsumerState<GameBoardView> {
                             ),
                           );
                         } else {
+                          final ghostState = ghostStateAsync.value;
                           boardWidget = Container(
+                            key: _boardKey,
                             width: boardSize,
                             height: boardSize,
                             decoration: BoxDecoration(
@@ -725,11 +784,47 @@ class _GameBoardViewState extends ConsumerState<GameBoardView> {
                                         _processMoveAttempt(_selectedSquare!, sq, match);
                                       }
                                     },
+                                    onDragUpdate: _onPieceDragUpdate,
+                                    onDragEnd: _onPieceDragEnd,
                                   );
                                 },
                               ),
                             ),
                           );
+
+                          // Overlay Ghost Piece if active
+                          if (ghostState != null) {
+                            final chess = chess_lib.Chess.fromFEN(match.currentFen);
+                            final ghostPiece = chess.get(ghostState.fromSquare);
+                            if (ghostPiece != null) {
+                              final pieceChar = ghostPiece.color == chess_lib.Color.WHITE
+                                  ? ghostPiece.type.name.toUpperCase()
+                                  : ghostPiece.type.name.toLowerCase();
+                              
+                              final ghostSize = boardSize / 8.0;
+                              final gx = ghostState.x * boardSize - (ghostSize / 2);
+                              final gy = ghostState.y * boardSize - (ghostSize / 2);
+
+                              boardWidget = Stack(
+                                children: [
+                                  boardWidget,
+                                  Positioned(
+                                    left: gx,
+                                    top: gy,
+                                    width: ghostSize,
+                                    height: ghostSize,
+                                    child: IgnorePointer(
+                                      child: ChessPieceWidget(
+                                        pieceChar: pieceChar,
+                                        isGhost: true,
+                                        size: ghostSize * 0.8,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              );
+                            }
+                          }
                         }
 
                         return Row(
@@ -745,7 +840,7 @@ class _GameBoardViewState extends ConsumerState<GameBoardView> {
                                       ? (material.whiteAdvantage * 75.0)
                                       : (material.blackAdvantage * 75.0)),
                               isWhiteOrientation: !_isBoardFlipped,
-                              height: boardSize * (_renderMode == BoardRenderMode.threeD ? 1.1 : 1.0),
+                              height: boardSize * (render3d ? 1.1 : 1.0),
                             ),
                             const SizedBox(width: 8),
                             boardWidget,
@@ -764,7 +859,7 @@ class _GameBoardViewState extends ConsumerState<GameBoardView> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                         children: [
-                          ElevatedButton.icon(
+                          ElevatedButton(
                             onPressed: () {
                               showModalBottomSheet(
                                 context: context,
@@ -774,32 +869,29 @@ class _GameBoardViewState extends ConsumerState<GameBoardView> {
                                 ),
                               );
                             },
-                            icon: const Icon(Icons.chat_bubble_outline, size: 18),
-                            label: const Text('Chat'),
                             style: ElevatedButton.styleFrom(
                               backgroundColor: BoardThemes.surfaceCard,
                               foregroundColor: Colors.white,
                             ),
+                            child: const Text('CHAT'),
                           ),
-                          ElevatedButton.icon(
+                          ElevatedButton(
                             onPressed: () =>
                                 ref.read(gameStateNotifierProvider.notifier).offerDraw(),
-                            icon: const Icon(Icons.handshake_outlined, size: 18),
-                            label: const Text('Offer Draw'),
                             style: ElevatedButton.styleFrom(
                               backgroundColor: BoardThemes.surfaceCard,
                               foregroundColor: Colors.white,
                             ),
+                            child: const Text('OFFER DRAW'),
                           ),
-                          ElevatedButton.icon(
+                          ElevatedButton(
                             onPressed: () =>
                                 ref.read(gameStateNotifierProvider.notifier).resign(),
-                            icon: const Icon(Icons.flag_outlined, size: 18),
-                            label: const Text('Resign'),
                             style: ElevatedButton.styleFrom(
                               backgroundColor: BoardThemes.dangerAlert.withAlpha(200),
                               foregroundColor: Colors.white,
                             ),
+                            child: const Text('RESIGN'),
                           ),
                         ],
                       )
