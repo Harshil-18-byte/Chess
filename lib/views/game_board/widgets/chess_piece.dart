@@ -5,12 +5,18 @@ class ChessPieceWidget extends StatelessWidget {
   final String pieceChar; // e.g. 'P', 'p', 'N', 'n', 'B', 'b', 'R', 'r', 'Q', 'q', 'K', 'k'
   final double size;
   final bool isDraggable;
+  final bool isGhost;
+  final Function(DragUpdateDetails)? onDragUpdate;
+  final VoidCallback? onDragEnd;
 
   const ChessPieceWidget({
     super.key,
     required this.pieceChar,
     this.size = 44,
     this.isDraggable = false,
+    this.isGhost = false,
+    this.onDragUpdate,
+    this.onDragEnd,
   });
 
   /// True if piece is White.
@@ -41,7 +47,7 @@ class ChessPieceWidget extends StatelessWidget {
     final symbol = pieceSymbol;
     if (symbol.isEmpty) return const SizedBox.shrink();
 
-    final pieceWidget = Center(
+    Widget pieceWidget = Center(
       child: Stack(
         alignment: Alignment.center,
         children: [
@@ -88,12 +94,23 @@ class ChessPieceWidget extends StatelessWidget {
       ),
     );
 
+    if (isGhost) {
+      pieceWidget = Opacity(
+        opacity: 0.5,
+        child: pieceWidget,
+      );
+    }
+
     if (!isDraggable) {
       return pieceWidget;
     }
 
     return Draggable<String>(
       data: pieceChar,
+      onDragUpdate: onDragUpdate,
+      onDragEnd: (details) {
+        onDragEnd?.call();
+      },
       feedback: Material(
         color: Colors.transparent,
         child: Transform.scale(
