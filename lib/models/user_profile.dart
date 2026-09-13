@@ -13,6 +13,7 @@ class UserProfile {
   final DateTime createdAt;
   final DateTime lastActiveAt;
   final bool isBanned;
+  final Map<String, dynamic> fcmTokens;
 
   /// Current chess skill grade derived from Elo rating.
   ChessGrade get chessGrade => ChessGrade.fromElo(eloRating);
@@ -28,6 +29,7 @@ class UserProfile {
     required this.createdAt,
     required this.lastActiveAt,
     this.isBanned = false,
+    this.fcmTokens = const {},
   });
 
   /// Creates a [UserProfile] from a JSON / Firestore map.
@@ -54,6 +56,7 @@ class UserProfile {
       createdAt: parseDateTime(json['createdAt']),
       lastActiveAt: parseDateTime(json['lastActiveAt']),
       isBanned: json['isBanned'] as bool? ?? false,
+      fcmTokens: json['fcmTokens'] as Map<String, dynamic>? ?? {},
     );
   }
 
@@ -71,6 +74,7 @@ class UserProfile {
       'createdAt': Timestamp.fromDate(createdAt),
       'lastActiveAt': Timestamp.fromDate(lastActiveAt),
       'isBanned': isBanned,
+      'fcmTokens': fcmTokens,
     };
   }
 
@@ -86,6 +90,7 @@ class UserProfile {
     DateTime? createdAt,
     DateTime? lastActiveAt,
     bool? isBanned,
+    Map<String, dynamic>? fcmTokens,
   }) {
     return UserProfile(
       uid: uid ?? this.uid,
@@ -98,6 +103,7 @@ class UserProfile {
       createdAt: createdAt ?? this.createdAt,
       lastActiveAt: lastActiveAt ?? this.lastActiveAt,
       isBanned: isBanned ?? this.isBanned,
+      fcmTokens: fcmTokens ?? this.fcmTokens,
     );
   }
 
@@ -113,7 +119,8 @@ class UserProfile {
           wins == other.wins &&
           losses == other.losses &&
           draws == other.draws &&
-          isBanned == other.isBanned;
+          isBanned == other.isBanned &&
+          _mapEquals(fcmTokens, other.fcmTokens);
 
   @override
   int get hashCode =>
@@ -124,5 +131,15 @@ class UserProfile {
       wins.hashCode ^
       losses.hashCode ^
       draws.hashCode ^
-      isBanned.hashCode;
+      isBanned.hashCode ^
+      fcmTokens.hashCode;
+
+  bool _mapEquals(Map<String, dynamic>? a, Map<String, dynamic>? b) {
+    if (a == null) return b == null;
+    if (b == null || a.length != b.length) return false;
+    for (final key in a.keys) {
+      if (a[key] != b[key]) return false;
+    }
+    return true;
+  }
 }
