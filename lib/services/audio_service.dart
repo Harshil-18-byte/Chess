@@ -65,27 +65,47 @@ class AudioService {
 
   /// Plays standard piece move sound effect.
   Future<void> playMove() async {
-    await _playSound('sounds/move.mp3', haptic: HapticFeedback.selectionClick);
+    await _playSound('audio/move/move.ogg', haptic: HapticFeedback.selectionClick);
   }
 
   /// Plays piece capture sound effect.
   Future<void> playCapture() async {
-    await _playSound('sounds/capture.mp3', haptic: HapticFeedback.mediumImpact);
+    await _playSound('audio/capture/capture.ogg', haptic: HapticFeedback.mediumImpact);
   }
 
   /// Plays check alert chime.
   Future<void> playCheck() async {
-    await _playSound('sounds/check.mp3', haptic: HapticFeedback.heavyImpact);
+    await _playSound('audio/check/check.ogg', haptic: HapticFeedback.heavyImpact);
   }
 
   /// Plays game conclusion sound effect.
   Future<void> playGameOver() async {
-    await _playSound('sounds/game_over.mp3', haptic: HapticFeedback.vibrate);
+    await _playSound('audio/game_end/game_end.ogg', haptic: HapticFeedback.vibrate);
   }
 
   /// Plays low clock warning sound effect.
   Future<void> playLowTime() async {
-    await _playSound('sounds/low_time.mp3', haptic: HapticFeedback.lightImpact);
+    await _playSound('audio/low_time/low_time.ogg', haptic: HapticFeedback.lightImpact);
+  }
+
+  /// Plays castling sound effect.
+  Future<void> playCastle() async {
+    await _playSound('audio/castle/castle.ogg', haptic: HapticFeedback.selectionClick);
+  }
+
+  /// Plays promotion sound effect.
+  Future<void> playPromotion() async {
+    await _playSound('audio/promotion/promotion.ogg', haptic: HapticFeedback.heavyImpact);
+  }
+
+  /// Plays game start sound effect.
+  Future<void> playStart() async {
+    await _playSound('audio/game_start/game_start.ogg', haptic: HapticFeedback.mediumImpact);
+  }
+
+  /// Plays UI tap sound effect.
+  Future<void> playUiTap() async {
+    await _playSound('audio/ui_tap/ui_tap.ogg', haptic: HapticFeedback.selectionClick);
   }
 
   Future<void> _playSound(String assetPath, {Future<void> Function()? haptic}) async {
