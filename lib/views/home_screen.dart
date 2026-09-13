@@ -2,14 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/constants/chess_constants.dart';
 import '../core/theme/board_themes.dart';
-import '../core/theme/app_typography.dart';
-import '../core/theme/liquid_glass.dart';
 import '../models/chess_match.dart';
 import '../models/chess_grade.dart';
 import '../models/user_profile.dart';
 import '../state/game_state_notifier.dart';
-import 'game_board/game_board_view.dart';
 import 'history_screen.dart';
+import 'match_setup_screen.dart';
+import 'settings_screen.dart';
+import 'profile_screen.dart';
+import 'widgets/loading_overlay.dart';
 
 /// Main Lobby and Matchmaking entry point.
 class HomeScreen extends ConsumerStatefulWidget {
@@ -20,8 +21,6 @@ class HomeScreen extends ConsumerStatefulWidget {
 }
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
-  bool _isQueueing = false;
-  String? _queuedTimeControl;
   UserProfile? _userProfile;
   List<ChessMatch> _pastMatches = [];
   bool _isLoadingProfile = true;
@@ -76,84 +75,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     }
   }
 
-  Future<void> _startOnlineMatchmaking(int timeControlMillis, String label) async {
-    final auth = ref.read(authServiceProvider);
-    final firestore = ref.read(firestoreServiceProvider);
-    final uid = auth.currentUid;
-    if (uid.isEmpty) return;
-
-    setState(() {
-      _isQueueing = true;
-      _queuedTimeControl = label;
-    });
-
-    try {
-      final matchId = await firestore.findOrCreateMatchmakingMatch(
-        uid: uid,
-        timeControlMillis: timeControlMillis,
-      );
-
-      if (!mounted) return;
-
-      if (matchId != null) {
-        setState(() => _isQueueing = false);
-        _navigateToMatch(matchId);
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Joined $label queue. Searching for opponent...'),
-            backgroundColor: BoardThemes.accentCyan,
-            duration: const Duration(seconds: 4),
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() => _isQueueing = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Matchmaking error: $e'), backgroundColor: BoardThemes.dangerAlert),
-        );
-      }
-    }
-  }
-
-  Future<void> _cancelMatchmaking() async {
-    final auth = ref.read(authServiceProvider);
-    final firestore = ref.read(firestoreServiceProvider);
-    final uid = auth.currentUid;
-    if (uid.isNotEmpty) {
-      await firestore.leaveMatchmakingQueue(uid);
-    }
-    if (mounted) {
-      setState(() {
-        _isQueueing = false;
-        _queuedTimeControl = null;
-      });
-    }
-  }
-
-  Future<void> _startEngineMatch(int difficulty, String label) async {
-    final auth = ref.read(authServiceProvider);
-    final firestore = ref.read(firestoreServiceProvider);
-    final uid = auth.currentUid.isNotEmpty ? auth.currentUid : 'player_local';
-
-    final match = await firestore.createMatch(
-      whiteUid: uid,
-      blackUid: 'engine_stockfish',
-      matchType: 'engine',
-      timeControlMillis: ChessConstants.rapidMillis,
-      engineDifficulty: difficulty,
-    );
-
-    if (mounted) {
-      _navigateToMatch(match.matchId);
-    }
-  }
-
-  void _navigateToMatch(String matchId) {
+  void _navigateToMatchSetup(String matchType) {
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (context) => GameBoardView(matchId: matchId),
+        builder: (context) => MatchSetupScreen(matchType: matchType),
       ),
     ).then((_) {
       if (mounted) {
@@ -331,56 +256,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
   }
 
-  Widget _buildGradeEngineCard(ChessGrade grade) {
-    return GestureDetector(
-      onTap: () => _startEngineMatch(grade.stockfishSkill, grade.title),
-      child: LiquidGlassContainer(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
-        borderRadius: BorderRadius.circular(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  grade.iconSymbol,
-                  style: AppTypography.titleLarge.copyWith(fontSize: 22),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: BoardThemes.borderHairline,
-                    borderRadius: BorderRadius.circular(6),
-                    border: Border.all(
-                      color: BoardThemes.mutedSilver.withValues(alpha: 0.3),
-                      width: 1,
-                    ),
-                  ),
-                  child: Text(
-                    'Lvl ${grade.stockfishSkill}',
-                    style: AppTypography.labelSmall,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Text(
-              grade.title,
-              style: AppTypography.labelLarge.copyWith(fontSize: 13),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              '${grade.elo} Elo',
-              style: AppTypography.bodySmall,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
 
   @override
   Widget build(BuildContext context) {
@@ -413,11 +288,27 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ),
           ],
         ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(builder: (context) => const ProfileScreen()),
+              );
+            },
+            child: const Text('PROFILE', style: TextStyle(color: BoardThemes.pureWhite, fontWeight: FontWeight.bold)),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(builder: (context) => const SettingsScreen()),
+              );
+            },
+            child: const Text('SETTINGS', style: TextStyle(color: BoardThemes.pureWhite, fontWeight: FontWeight.bold)),
+          ),
+        ],
       ),
       body: _isLoadingProfile
-          ? const Center(
-              child: CircularProgressIndicator(color: BoardThemes.brandEmber),
-            )
+          ? const LoadingOverlay(message: 'LOADING PROFILE')
           : SafeArea(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.all(16.0),
@@ -453,7 +344,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                 width: 64,
                                 height: 64,
                                 color: BoardThemes.brandEmber.withAlpha(50),
-                                child: const Icon(Icons.shield, color: BoardThemes.brandEmber),
+                                child: const Center(
+                                  child: Text('♚', style: TextStyle(fontSize: 32, color: BoardThemes.pureWhite)),
+                                ),
                               ),
                             ),
                           ),
@@ -486,43 +379,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         ],
                       ),
                     ),
-                    // Queueing status banner
-                    if (_isQueueing)
-                      Container(
-                        margin: const EdgeInsets.only(bottom: 16),
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                        decoration: BoxDecoration(
-                          color: BoardThemes.accentCyan.withAlpha(25),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: BoardThemes.accentCyan),
-                        ),
-                        child: Row(
-                          children: [
-                            const SizedBox(
-                              width: 18,
-                              height: 18,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: BoardThemes.accentCyan,
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Text(
-                                'Searching opponent in $_queuedTimeControl...',
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ),
-                            TextButton(
-                              onPressed: _cancelMatchmaking,
-                              child: const Text('Cancel', style: TextStyle(color: BoardThemes.dangerAlert)),
-                            ),
-                          ],
-                        ),
-                      ),
 
                     // Profile Card
                     if (_userProfile != null)
@@ -572,11 +428,21 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                             fontWeight: FontWeight.bold,
                                           ),
                                         ),
-                                        IconButton(
-                                          icon: const Icon(Icons.edit, size: 14, color: Colors.white70),
+                                        TextButton(
                                           onPressed: _showEditDisplayNameDialog,
-                                          padding: EdgeInsets.zero,
-                                          constraints: const BoxConstraints(),
+                                          style: TextButton.styleFrom(
+                                            padding: const EdgeInsets.symmetric(horizontal: 8),
+                                            minimumSize: Size.zero,
+                                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                          ),
+                                          child: const Text(
+                                            '[EDIT]',
+                                            style: TextStyle(
+                                              color: BoardThemes.mutedSilver,
+                                              fontSize: 10,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
                                         ),
                                       ],
                                     ),
@@ -617,7 +483,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                                       ),
                                                     ),
                                                     const SizedBox(width: 3),
-                                                    Icon(Icons.expand_more, size: 12, color: currentGrade.color),
+                                                    Text('▼', style: TextStyle(fontSize: 10, color: currentGrade.color)),
                                                   ],
                                                 ),
                                               ),
@@ -656,41 +522,32 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     // Section: Online Multiplayer
                     const Text('Online Matchmaking', style: BoardThemes.headerMedium),
                     const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _buildModeCard(
-                            title: 'Bullet',
-                            time: '1 min',
-                            icon: Icons.bolt,
-                            accent: BoardThemes.accentRose,
-                            onTap: () =>
-                                _startOnlineMatchmaking(ChessConstants.bulletMillis, 'Bullet (1m)'),
-                          ),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 56,
+                      child: ElevatedButton(
+                        onPressed: () {
+                          if (_userProfile?.isBanned == true) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Your account has been banned from online play.'),
+                                backgroundColor: BoardThemes.dangerAlert,
+                              ),
+                            );
+                            return;
+                          }
+                          _navigateToMatchSetup('human');
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: BoardThemes.accentCyan,
+                          foregroundColor: Colors.black,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                         ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: _buildModeCard(
-                            title: 'Blitz',
-                            time: '3 min',
-                            icon: Icons.timer,
-                            accent: BoardThemes.accentGold,
-                            onTap: () =>
-                                _startOnlineMatchmaking(ChessConstants.blitzMillis, 'Blitz (3m)'),
-                          ),
+                        child: const Text(
+                          'Play Online',
+                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                         ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: _buildModeCard(
-                            title: 'Rapid',
-                            time: '10 min',
-                            icon: Icons.hourglass_bottom,
-                            accent: BoardThemes.accentCyan,
-                            onTap: () =>
-                                _startOnlineMatchmaking(ChessConstants.rapidMillis, 'Rapid (10m)'),
-                          ),
-                        ),
-                      ],
+                      ),
                     ),
                     const SizedBox(height: 24),
 
@@ -702,24 +559,22 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       style: BoardThemes.bodyRegular.copyWith(fontSize: 12),
                     ),
                     const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Expanded(child: _buildGradeEngineCard(ChessGrade.beginner)),
-                        const SizedBox(width: 8),
-                        Expanded(child: _buildGradeEngineCard(ChessGrade.novice)),
-                        const SizedBox(width: 8),
-                        Expanded(child: _buildGradeEngineCard(ChessGrade.intermediate)),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        Expanded(child: _buildGradeEngineCard(ChessGrade.advanced)),
-                        const SizedBox(width: 8),
-                        Expanded(child: _buildGradeEngineCard(ChessGrade.master)),
-                        const SizedBox(width: 8),
-                        Expanded(child: _buildGradeEngineCard(ChessGrade.grandmaster)),
-                      ],
+                    SizedBox(
+                      width: double.infinity,
+                      height: 56,
+                      child: ElevatedButton(
+                        onPressed: () => _navigateToMatchSetup('engine'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: BoardThemes.surfaceCard,
+                          foregroundColor: BoardThemes.pureWhite,
+                          side: const BorderSide(color: BoardThemes.borderSubtle),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        ),
+                        child: const Text(
+                          'Play vs Computer',
+                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                        ),
+                      ),
                     ),
                     const SizedBox(height: 28),
 
@@ -767,11 +622,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                               border: Border.all(color: BoardThemes.borderSubtle),
                             ),
                             child: ListTile(
-                              leading: Icon(
-                                match.matchType == 'engine'
-                                    ? Icons.smart_toy_outlined
-                                    : Icons.people_outline,
-                                color: BoardThemes.accentCyan,
+                              leading: Text(
+                                match.matchType == 'engine' ? '⚙' : '👤',
+                                style: const TextStyle(fontSize: 24, color: BoardThemes.mutedSilver),
                               ),
                               title: Text(
                                 match.matchType == 'engine'
@@ -786,7 +639,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                 'Status: ${match.status.name}',
                                 style: TextStyle(color: statusColor, fontSize: 12),
                               ),
-                              trailing: const Icon(Icons.chevron_right, color: Colors.white54),
+                              trailing: const Text('▶', style: TextStyle(color: BoardThemes.mutedSilver, fontSize: 16)),
                               onTap: () {
                                 Navigator.of(context).push(
                                   MaterialPageRoute(
@@ -802,46 +655,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 ),
               ),
             ),
-    );
-  }
-
-  Widget _buildModeCard({
-    required String title,
-    required String time,
-    required IconData icon,
-    required Color accent,
-    required VoidCallback onTap,
-  }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 10),
-        decoration: BoxDecoration(
-          color: BoardThemes.surfaceDark,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: BoardThemes.borderSubtle),
-        ),
-        child: Column(
-          children: [
-            Icon(icon, color: accent, size: 28),
-            const SizedBox(height: 8),
-            Text(
-              title,
-              style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-                fontSize: 14,
-              ),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              time,
-              style: TextStyle(color: accent, fontSize: 11, fontWeight: FontWeight.w600),
-            ),
-          ],
-        ),
-      ),
     );
   }
 }
