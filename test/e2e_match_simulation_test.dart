@@ -139,6 +139,7 @@ void main() {
         isWin: true,
         isLoss: false,
         isDraw: false,
+        isTimedMatch: true,
       );
 
       await firestoreService.updateUserStats(
@@ -147,6 +148,7 @@ void main() {
         isWin: false,
         isLoss: true,
         isDraw: false,
+        isTimedMatch: true,
       );
 
       final whiteProfile = await firestoreService.getUserProfile('user_white');
