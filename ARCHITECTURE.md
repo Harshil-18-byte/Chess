@@ -153,6 +153,26 @@ flowchart LR
   TrackB --> S
 ```
 
+### The Two-Channel Separation Policy
+
+To support ephemeral multiplayer rendering (such as live opponent drag preview) without compromising the transactional integrity of the match, the architecture enforces a strict two-channel separation:
+
+#### Channel 1: Authoritative Move State (Firestore)
+- **Transport**: Cloud Firestore `matches/{id}` documents and `moves` subcollections.
+- **Rules**: Mutated exclusively via `executeMoveTransaction()`. Writes are validated, rate-limited, and arbitrate clock state.
+- **Impact**: Changes `currentFen`, `activeTurn`, `clocks`, and `MatchStatus`. This is the ONLY channel that has authority over the game.
+
+#### Channel 2: Ephemeral Drag-Position Stream (Firebase Realtime Database)
+- **Transport**: Firebase Realtime Database at `liveDrag/{matchId}`.
+- **Rules**: High-frequency (~20Hz), unvalidated, last-write-wins data. Exists solely to broadcast the dragging player's pointer position.
+- **Impact**: Purely visual. Drives "ghost piece" rendering on the observing client. No security rule, Cloud Function, or client code may *ever* read this channel as input to move validation, anti-cheat heurists, or clock calculation.
+- **Why RTDB?**: Firestore's document-write pricing and transaction model are the wrong fit for 15-20 writes/sec per client. RTDB provides the required low latency without the massive document-write costs, keeping the ephemeral data logically and physically disjoint from the authoritative data.
+
+#### Channel 3: Push Notification Re-Engagement (FCM)
+- **Transport**: Firebase Cloud Messaging, triggered by Cloud Functions (`sendTurnNotification.ts`, `sendMatchEventNotification.ts`).
+- **Rules**: Only triggered when authoritative state changes (e.g., activeTurn flips) AND the target player is not actively viewing the match (presence suppression via RTDB).
+- **Impact**: Strictly an attention/re-engagement mechanism. Push notifications NEVER carry authoritative game state. Upon tapping a notification, the app deep-links to the match and forces a resync via Channel 1.
+
 ### Native Stockfish Isolate Architecture
 
 To prevent micro-stutters during deep engine searches (up to 20 plies), Stockfish runs in a dedicated background isolate:
@@ -268,6 +288,16 @@ $$\text{StateRecord} = \text{PiecePlacement} \parallel \text{SideToMove} \parall
 
 $$\text{IsThreefold} = \left( \sum_{i=1}^{M} \mathbb{I}\left(\text{StateRecord}_i = \text{StateRecord}_{\text{current}}\right) \ge 3 \right)$$
 
+### 3. Draw Condition Resolution Strategy
+
+Unlike FIDE over-the-board play where certain draws are "claimable" by a player and others are "automatic", digital interfaces benefit from deterministic auto-resolution to avoid complex UI states (e.g., offering a "Claim Draw" button).
+- **Threefold Repetition & 50-Move Rule**: These are strictly auto-resolved and immediately terminate the match in a draw the moment the claimable threshold is reached. No player action is required.
+- **Fivefold Repetition & 75-Move Rule**: Because the app automatically resolves the match at 3 repetitions and 50 moves, the 5-fold and 75-move thresholds are intrinsically never reached and are thus not separately enforced.
+- **Insufficient Material & Dead Positions**: Only the explicitly listed 4 cases above are enforced, relying strictly on the `chess` package's `insufficient_material()` checks. Complex dead positions (e.g., locked pawn chains) or K+N+N vs K are NOT classified as insufficient material by the package and remain active.
+
+### 4. Untimed Match Abandonment
+Untimed matches are structurally exempt from the Cron timeout sweeper. However, to prevent indefinitely stalled matches, the waiting player (whose turn it is NOT) gains the ability to manually claim a win via abandonment. This is verified server-side against `lastMoveServerTimestamp` (which is tracked for all matches specifically for this purpose). If `DateTime.now() - lastMoveServerTimestamp >= 24 hours`, the claim succeeds and updates the match status to `abandoned`.
+
 ---
 
 ## 6. State Management & Stream Reconciliation
@@ -376,3 +406,13 @@ All glass surfaces in the app use `LiquidGlassContainer` with these parameters:
 - **Reduce Motion (iOS + Flutter)**: `MediaQuery.disableAnimations(context)` → disables specular animation and `AnimatedContainer` transitions.
 - **High Contrast (Flutter)**: `MediaQuery.highContrastOf(context)` → disables blur, renders solid surface.
 - All text elements meet WCAG 2.1 AA contrast (≥4.5:1) against the `#0A0A0A` scaffold background.
+
+---
+
+## 9. Build Order & Implementation Phases
+
+**Stage 6 Additions:**
+  6b. **Live drag preview** -> Verify on two simulated/real clients: dragging player sees smooth local drag, observing player sees the ghost piece track in real time, illegal release snaps back with no ghost artifact left behind, legal release transitions cleanly from ghost to the real committed-move animation, and a simulated mid-drag disconnect clears the ghost within the defined 500ms staleness window on the observer's client.
+
+**Stage 7 Additions:**
+  7b. **Push notifications** -> Real-time sync vs push notifications division. Verify Cloud Functions send FCM messages to inactive players on turn change or match events. Verify foreground suppression via RTDB presence marker prevents duplicate notifications when the user is actively viewing the match.
