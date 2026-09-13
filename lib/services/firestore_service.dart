@@ -6,13 +6,16 @@ import '../core/errors/app_exceptions.dart';
 import '../models/chess_match.dart';
 import '../models/chess_move.dart';
 import '../models/user_profile.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 
 /// Service managing Firestore database operations, atomic transactions, and anti-cheat constraints.
 class FirestoreService {
   final FirebaseFirestore _firestore;
+  final FirebaseFunctions _functions;
 
-  FirestoreService({FirebaseFirestore? firestore})
-      : _firestore = firestore ?? FirebaseFirestore.instance;
+  FirestoreService({FirebaseFirestore? firestore, FirebaseFunctions? functions})
+      : _firestore = firestore ?? FirebaseFirestore.instance,
+        _functions = functions ?? FirebaseFunctions.instance;
 
   CollectionReference<Map<String, dynamic>> get _matchesRef =>
       _firestore.collection(ChessConstants.matchesCollection);
@@ -51,6 +54,7 @@ class FirestoreService {
     required bool isWin,
     required bool isLoss,
     required bool isDraw,
+    required bool isTimedMatch,
   }) async {
     final docRef = _usersRef.doc(uid);
     await _firestore.runTransaction((transaction) async {
@@ -59,7 +63,7 @@ class FirestoreService {
       final profile = UserProfile.fromJson(snapshot.data()!);
 
       final updatedProfile = profile.copyWith(
-        eloRating: (profile.eloRating + eloDelta).clamp(100, 3500),
+        eloRating: isTimedMatch ? (profile.eloRating + eloDelta).clamp(100, 3500) : profile.eloRating,
         gamesPlayed: profile.gamesPlayed + 1,
         wins: isWin ? profile.wins + 1 : profile.wins,
         losses: isLoss ? profile.losses + 1 : profile.losses,
@@ -80,6 +84,10 @@ class FirestoreService {
     required String whiteUid,
     required String blackUid,
     required String matchType, // 'human' or 'engine'
+    bool isTimedMatch = true,
+    String? timeControlPreset,
+    int? initialMinutes,
+    int? incrementSeconds,
     int? timeControlMillis,
     int? engineDifficulty,
   }) async {
@@ -100,10 +108,14 @@ class FirestoreService {
       currentFen: ChessConstants.initialFen,
       status: MatchStatus.active,
       activeTurn: 'w',
-      whiteMillisRemaining: timeControl,
-      blackMillisRemaining: timeControl,
+      isTimedMatch: isTimedMatch,
+      whiteMillisRemaining: isTimedMatch ? timeControl : null,
+      blackMillisRemaining: isTimedMatch ? timeControl : null,
       lastMoveServerTimestamp: now,
       createdAt: now,
+      timeControlPreset: timeControlPreset,
+      initialMinutes: initialMinutes,
+      incrementSeconds: incrementSeconds,
       matchType: matchType,
       engineDifficulty: engineDifficulty,
       moveCount: 0,
@@ -113,7 +125,9 @@ class FirestoreService {
     );
 
     final matchMap = match.toJson();
-    matchMap['lastMoveServerTimestamp'] = FieldValue.serverTimestamp();
+    if (isTimedMatch) {
+      matchMap['lastMoveServerTimestamp'] = FieldValue.serverTimestamp();
+    }
     matchMap['createdAt'] = FieldValue.serverTimestamp();
 
     await _matchesRef.doc(matchId).set(matchMap);
@@ -183,10 +197,25 @@ class FirestoreService {
     required bool isCheckmate,
     required MatchStatus newStatus,
     required String clientMoveId,
+    required String fromSquare,
+    required String toSquare,
     int? updatedHalfmoveClock,
     String? capturedPiece,
     String? promotionPiece,
+    bool useLocalFallback = false, // True for emulator mock tests
   }) async {
+    if (!useLocalFallback) {
+      final callable = _functions.httpsCallable('validateMove');
+      await callable.call({
+        'matchId': matchId,
+        'from': fromSquare,
+        'to': toSquare,
+        'promotion': promotionPiece,
+        'clientMoveId': clientMoveId,
+      });
+      return;
+    }
+
     final matchDocRef = _matchesRef.doc(matchId);
     final movesColRef = matchDocRef.collection(ChessConstants.movesSubcollection);
 
@@ -236,27 +265,30 @@ class FirestoreService {
         );
       }
 
-      // 3. Calculate authoritative elapsed time
-      final lastTimestamp =
-          (currentData['lastMoveServerTimestamp'] as Timestamp?)?.toDate() ??
-              DateTime.now();
-      final now = DateTime.now();
-      final elapsedMillis = now.difference(lastTimestamp).inMilliseconds.clamp(0, 86400000);
-
-      int updatedWhiteMillis = currentMatch.whiteMillisRemaining;
-      int updatedBlackMillis = currentMatch.blackMillisRemaining;
-
+      // 3. Calculate authoritative elapsed time ONLY if timed
       MatchStatus finalStatus = newStatus;
+      int? updatedWhiteMillis = currentMatch.whiteMillisRemaining;
+      int? updatedBlackMillis = currentMatch.blackMillisRemaining;
 
-      if (currentMatch.activeTurn == 'w') {
-        updatedWhiteMillis = (updatedWhiteMillis - elapsedMillis).clamp(0, 86400000);
-        if (updatedWhiteMillis <= 0) {
-          finalStatus = MatchStatus.whiteTimeout;
-        }
-      } else {
-        updatedBlackMillis = (updatedBlackMillis - elapsedMillis).clamp(0, 86400000);
-        if (updatedBlackMillis <= 0) {
-          finalStatus = MatchStatus.blackTimeout;
+      if (currentMatch.isTimedMatch) {
+        final now = DateTime.now();
+        final lastTimestamp =
+            (currentData['lastMoveServerTimestamp'] as Timestamp?)?.toDate() ??
+                now;
+        final elapsedMillis = now.difference(lastTimestamp).inMilliseconds.clamp(0, 86400000);
+        
+        final incrementMillis = (currentMatch.incrementSeconds ?? 0) * 1000;
+
+        if (currentMatch.activeTurn == 'w') {
+          updatedWhiteMillis = ((updatedWhiteMillis ?? 0) - elapsedMillis + incrementMillis).clamp(0, 86400000);
+          if (updatedWhiteMillis <= 0) {
+            finalStatus = MatchStatus.whiteTimeout;
+          }
+        } else {
+          updatedBlackMillis = ((updatedBlackMillis ?? 0) - elapsedMillis + incrementMillis).clamp(0, 86400000);
+          if (updatedBlackMillis <= 0) {
+            finalStatus = MatchStatus.blackTimeout;
+          }
         }
       }
 
@@ -271,16 +303,20 @@ class FirestoreService {
         'currentFen': newFen,
         'activeTurn': nextTurn,
         'status': finalStatus.name,
-        'whiteMillisRemaining': updatedWhiteMillis,
-        'blackMillisRemaining': updatedBlackMillis,
         'lastMoveSan': san,
         'moveCount': currentMatch.moveCount + 1,
         'positionHistory': updatedHistory,
         'halfmoveClock': updatedHalfmoveClock ?? (currentMatch.halfmoveClock + 1),
         'processedClientMoveIds': updatedProcessedIds,
-        'lastMoveServerTimestamp': FieldValue.serverTimestamp(),
         'drawOfferedBy': null,
       };
+
+      if (currentMatch.isTimedMatch) {
+        updateData['whiteMillisRemaining'] = updatedWhiteMillis;
+        updateData['blackMillisRemaining'] = updatedBlackMillis;
+      }
+      
+      updateData['lastMoveServerTimestamp'] = FieldValue.serverTimestamp();
 
       if (finalStatus == MatchStatus.whiteWonCheckmate ||
           finalStatus == MatchStatus.blackTimeout) {
@@ -298,7 +334,7 @@ class FirestoreService {
         moveNumber: moveNumber,
         san: san,
         fenAfterMove: newFen,
-        serverTimestamp: now,
+        serverTimestamp: DateTime.now(),
         movedBy: playerUid,
         capturedPiece: capturedPiece,
         isCheck: isCheck,
@@ -373,6 +409,7 @@ class FirestoreService {
       final snapshot = await transaction.get(matchDocRef);
       if (!snapshot.exists || snapshot.data() == null) return;
       final match = ChessMatch.fromJson(snapshot.data()!);
+      if (!match.isTimedMatch) throw StateError('NotATimedMatchException');
       if (match.status != MatchStatus.active) return;
 
       final newStatus =
@@ -387,6 +424,44 @@ class FirestoreService {
     });
   }
 
+  /// Claims abandonment for an untimed match if the opponent has been inactive for > 24 hours.
+  Future<void> claimAbandonment({
+    required String matchId,
+    required String claimantUid,
+  }) async {
+    final matchDocRef = _matchesRef.doc(matchId);
+    await _firestore.runTransaction((transaction) async {
+      final snapshot = await transaction.get(matchDocRef);
+      if (!snapshot.exists || snapshot.data() == null) return;
+      
+      final currentData = snapshot.data()!;
+      final match = ChessMatch.fromJson(currentData);
+      
+      if (match.status != MatchStatus.active) return;
+      if (match.isTimedMatch) return; // Only for untimed matches
+      
+      // Verify caller is a participant and it's NOT their turn
+      final isWhite = match.whiteUid == claimantUid;
+      final isBlack = match.blackUid == claimantUid;
+      if (!isWhite && !isBlack) return;
+      
+      if (match.activeTurn == 'w' && isWhite) return; // It's white's turn, white can't claim abandonment
+      if (match.activeTurn == 'b' && isBlack) return; // It's black's turn, black can't claim abandonment
+      
+      final lastTimestamp = (currentData['lastMoveServerTimestamp'] as Timestamp?)?.toDate();
+      if (lastTimestamp == null) return;
+      
+      final now = DateTime.now();
+      if (now.difference(lastTimestamp).inHours >= 24) {
+        transaction.update(matchDocRef, {
+          'status': MatchStatus.abandoned.name,
+          'winnerUid': claimantUid,
+          'lastMoveServerTimestamp': FieldValue.serverTimestamp(),
+        });
+      }
+    });
+  }
+
   // ==========================================
   // MATCHMAKING QUEUE
   // ==========================================
@@ -394,18 +469,29 @@ class FirestoreService {
   /// Enqueues the user and searches for a waiting opponent.
   Future<String?> findOrCreateMatchmakingMatch({
     required String uid,
-    required int timeControlMillis,
+    required bool isTimedMatch,
+    String? timeControlPreset,
+    int? initialMinutes,
+    int? incrementSeconds,
+    int? timeControlMillis,
   }) async {
     final profile = await getUserProfile(uid);
     if (profile != null && profile.isBanned) {
       throw const AuthRequiredException('Account is banned from matchmaking.');
     }
 
-    final query = await _queueRef
-        .where('timeControlMillis', isEqualTo: timeControlMillis)
-        .where('uid', isNotEqualTo: uid)
-        .limit(1)
-        .get();
+    var queueQuery = _queueRef
+        .where('isTimedMatch', isEqualTo: isTimedMatch)
+        .where('uid', isNotEqualTo: uid);
+        
+    if (isTimedMatch) {
+      queueQuery = queueQuery
+          .where('timeControlPreset', isEqualTo: timeControlPreset)
+          .where('initialMinutes', isEqualTo: initialMinutes)
+          .where('incrementSeconds', isEqualTo: incrementSeconds);
+    }
+        
+    final query = await queueQuery.limit(1).get();
 
     if (query.docs.isNotEmpty) {
       final opponentDoc = query.docs.first;
@@ -417,6 +503,10 @@ class FirestoreService {
         whiteUid: opponentUid,
         blackUid: uid,
         matchType: 'human',
+        isTimedMatch: isTimedMatch,
+        timeControlPreset: timeControlPreset,
+        initialMinutes: initialMinutes,
+        incrementSeconds: incrementSeconds,
         timeControlMillis: timeControlMillis,
       );
 
@@ -424,6 +514,10 @@ class FirestoreService {
     } else {
       await _queueRef.doc(uid).set({
         'uid': uid,
+        'isTimedMatch': isTimedMatch,
+        'timeControlPreset': timeControlPreset,
+        'initialMinutes': initialMinutes,
+        'incrementSeconds': incrementSeconds,
         'timeControlMillis': timeControlMillis,
         'queuedAt': FieldValue.serverTimestamp(),
       });
