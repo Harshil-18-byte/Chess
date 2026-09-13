@@ -16,6 +16,8 @@ class BoardSquareWidget extends StatelessWidget {
   final bool canDragPiece;
   final VoidCallback onTap;
   final Function(String fromSquare) onPieceDropped;
+  final Function(String fromSquare, DragUpdateDetails details)? onDragUpdate;
+  final Function(String fromSquare)? onDragEnd;
 
   const BoardSquareWidget({
     super.key,
@@ -31,6 +33,8 @@ class BoardSquareWidget extends StatelessWidget {
     this.canDragPiece = false,
     required this.onTap,
     required this.onPieceDropped,
+    this.onDragUpdate,
+    this.onDragEnd,
   });
 
   /// Explicit mathematical conversion: 0-63 linear index -> algebraic square (e.g. 'e4')
@@ -150,6 +154,12 @@ class BoardSquareWidget extends StatelessWidget {
                     child: ChessPieceWidget(
                       pieceChar: pieceChar!,
                       isDraggable: canDragPiece,
+                      onDragUpdate: onDragUpdate != null
+                          ? (details) => onDragUpdate!(algebraicSquare, details)
+                          : null,
+                      onDragEnd: onDragEnd != null
+                          ? () => onDragEnd!(algebraicSquare)
+                          : null,
                     ),
                   ),
 
