@@ -7,39 +7,34 @@ import UIKit
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
   ) -> Bool {
+    GeneratedPluginRegistrant.register(with: self)
+    
+    weak var registrar = self.registrar(forPlugin: "enterprise_chess")
+    if let registrar = registrar {
+      registrar.register(
+        LiquidGlassViewFactory(),
+        withId: "enterprise_chess/liquid_glass_view"
+      )
+
+      let channel = FlutterMethodChannel(
+        name: "enterprise_chess/liquid_glass",
+        binaryMessenger: registrar.messenger()
+      )
+      channel.setMethodCallHandler { (call, result) in
+        switch call.method {
+        case "accessibilityFlags":
+          result([
+            "reduceMotion":       UIAccessibility.isReduceMotionEnabled,
+            "reduceTransparency": UIAccessibility.isReduceTransparencyEnabled,
+          ])
+        default:
+          result(FlutterMethodNotImplemented)
+        }
+      }
+    }
+    
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
   }
 
-  func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {
-    let registry = engineBridge.pluginRegistry
-    GeneratedPluginRegistrant.register(with: registry)
 
-    // ── Register Liquid Glass platform view factory ──────────────────────────
-    registry.register(
-      LiquidGlassViewFactory(),
-      withId: "enterprise_chess/liquid_glass_view"
-    )
-
-    // ── Accessibility Method Channel (Path A bridge) ─────────────────────────
-    // Exposes UIAccessibility flags to the Flutter LiquidGlassBridge.
-    let binaryMessenger: FlutterBinaryMessenger = registry.value(
-      forKey: "FlutterBinaryMessenger"
-    ) as? FlutterBinaryMessenger ?? engineBridge.binaryMessenger
-
-    let channel = FlutterMethodChannel(
-      name: "enterprise_chess/liquid_glass",
-      binaryMessenger: binaryMessenger
-    )
-    channel.setMethodCallHandler { (call, result) in
-      switch call.method {
-      case "accessibilityFlags":
-        result([
-          "reduceMotion":       UIAccessibility.isReduceMotionEnabled,
-          "reduceTransparency": UIAccessibility.isReduceTransparencyEnabled,
-        ])
-      default:
-        result(FlutterMethodNotImplemented)
-      }
-    }
-  }
 }
