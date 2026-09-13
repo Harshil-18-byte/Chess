@@ -6,6 +6,7 @@ import 'chess_scene_controller.dart';
 import 'piece_model_loader.dart';
 import 'square_raycaster.dart';
 import 'move_animation_controller.dart';
+import '../../../services/live_drag_service.dart';
 
 /// 3D Chess Board View widget providing full perspective rendering, orbit/zoom controls, and tap-to-move interaction.
 class Board3DView extends StatefulWidget {
@@ -20,6 +21,7 @@ class Board3DView extends StatefulWidget {
   final ChessSceneController sceneController;
   final MoveAnimationController? animationController;
   final VoidCallback? onFallbackTo2D;
+  final DragPosition? activeGhost;
 
   const Board3DView({
     super.key,
@@ -34,6 +36,7 @@ class Board3DView extends StatefulWidget {
     required this.sceneController,
     this.animationController,
     this.onFallbackTo2D,
+    this.activeGhost,
   });
 
   @override
@@ -130,6 +133,7 @@ class _Board3DViewState extends State<Board3DView>
                       sceneController: widget.sceneController,
                       activeMoveAnimation:
                           widget.animationController?.activeAnimation,
+                      activeGhost: widget.activeGhost,
                     ),
                   ),
                   // Floating camera controls overlay
@@ -140,13 +144,13 @@ class _Board3DViewState extends State<Board3DView>
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         _buildControlButton(
-                          icon: Icons.refresh_rounded,
+                          label: 'RST',
                           tooltip: 'Reset Camera',
                           onTap: () => widget.sceneController.resetCamera(),
                         ),
                         const SizedBox(width: 8),
                         _buildControlButton(
-                          icon: Icons.threed_rotation_rounded,
+                          label: 'FLP',
                           tooltip: 'Flip Perspective',
                           onTap: () =>
                               widget.sceneController.toggleOrientation(),
@@ -154,7 +158,7 @@ class _Board3DViewState extends State<Board3DView>
                         if (widget.onFallbackTo2D != null) ...[
                           const SizedBox(width: 8),
                           _buildControlButton(
-                            icon: Icons.grid_view_rounded,
+                            label: '2D',
                             tooltip: 'Switch to 2D',
                             onTap: widget.onFallbackTo2D!,
                           ),
@@ -172,7 +176,7 @@ class _Board3DViewState extends State<Board3DView>
   }
 
   Widget _buildControlButton({
-    required IconData icon,
+    required String label,
     required String tooltip,
     required VoidCallback onTap,
   }) {
@@ -190,7 +194,7 @@ class _Board3DViewState extends State<Board3DView>
         ],
       ),
       child: IconButton(
-        icon: Icon(icon, color: Colors.white70, size: 20),
+        icon: Text(label, style: const TextStyle(color: Colors.white70, fontSize: 14, fontWeight: FontWeight.bold)),
         tooltip: tooltip,
         constraints: const BoxConstraints(minWidth: 38, minHeight: 38),
         padding: EdgeInsets.zero,
@@ -210,6 +214,7 @@ class _ChessBoard3DPainter extends CustomPainter {
   final String? kingInCheckSquare;
   final ChessSceneController sceneController;
   final Active3DMoveAnimation? activeMoveAnimation;
+  final DragPosition? activeGhost;
 
   _ChessBoard3DPainter({
     required this.fen,
@@ -220,6 +225,7 @@ class _ChessBoard3DPainter extends CustomPainter {
     this.kingInCheckSquare,
     required this.sceneController,
     this.activeMoveAnimation,
+    this.activeGhost,
   });
 
   @override
@@ -399,6 +405,28 @@ class _ChessBoard3DPainter extends CustomPainter {
       ));
     }
 
+    if (activeGhost != null) {
+      final ghostPiece = chess.get(activeGhost!.fromSquare);
+      if (ghostPiece != null) {
+        final isWhite = ghostPiece.color == chess_lib.Color.WHITE;
+        final pieceChar = isWhite ? ghostPiece.type.name.toUpperCase() : ghostPiece.type.name.toLowerCase();
+        
+        final bx = (activeGhost!.x * 8.0) - 4.0;
+        final by = (activeGhost!.y * 8.0) - 4.0;
+        final proj = project(bx, by, 0.0);
+
+        renderItems.add(_PieceRenderItem(
+          pieceChar: pieceChar,
+          x: bx,
+          y: by,
+          elevation: 0.2,
+          depth: proj.depth,
+          isWhite: isWhite,
+          isGhost: true,
+        ));
+      }
+    }
+
     // Sort items by depth (farthest from camera rendered first)
     renderItems.sort((a, b) => b.depth.compareTo(a.depth));
 
@@ -461,9 +489,11 @@ class _ChessBoard3DPainter extends CustomPainter {
       final bVal = ((item.isWhite ? material.whitePieceColor.b : material.blackPieceColor.b) * 255.0 * lightIntensity).round().clamp(0, 255);
       final shadedColor = Color.fromARGB(255, rVal, gVal, bVal);
 
-      final ringPaint = Paint()..color = shadedColor;
+      final ringPaint = Paint()..color = item.isGhost ? shadedColor.withValues(alpha: 0.5) : shadedColor;
       final strokePaint = Paint()
-        ..color = (item.isWhite ? const Color(0x33000000) : const Color(0x33FFFFFF))
+        ..color = item.isGhost 
+            ? (item.isWhite ? const Color(0x1A000000) : const Color(0x1AFFFFFF)) 
+            : (item.isWhite ? const Color(0x33000000) : const Color(0x33FFFFFF))
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1.0;
 
@@ -487,7 +517,8 @@ class _ChessBoard3DPainter extends CustomPainter {
         oldDelegate.lastMoveFrom != lastMoveFrom ||
         oldDelegate.lastMoveTo != lastMoveTo ||
         oldDelegate.kingInCheckSquare != kingInCheckSquare ||
-        oldDelegate.activeMoveAnimation != activeMoveAnimation;
+        oldDelegate.activeMoveAnimation != activeMoveAnimation ||
+        oldDelegate.activeGhost != activeGhost;
   }
 }
 
@@ -498,6 +529,7 @@ class _PieceRenderItem {
   final double elevation;
   final double depth;
   final bool isWhite;
+  final bool isGhost;
 
   const _PieceRenderItem({
     required this.pieceChar,
@@ -506,5 +538,6 @@ class _PieceRenderItem {
     required this.elevation,
     required this.depth,
     required this.isWhite,
+    this.isGhost = false,
   });
 }
