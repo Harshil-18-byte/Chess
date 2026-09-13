@@ -6,6 +6,7 @@ import 'package:enterprise_chess/core/rules/chess_rules_evaluator.dart';
 import 'package:enterprise_chess/models/chess_match.dart';
 import 'package:enterprise_chess/models/chess_move.dart';
 import 'package:enterprise_chess/models/user_profile.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:enterprise_chess/services/firestore_service.dart';
 import 'package:chess/chess.dart' as chess_lib;
 
@@ -144,6 +145,88 @@ void main() {
       expect(promoted, isTrue);
       expect(chess.get('e8')?.type.name, 'q');
     });
+
+    group('Castling Preconditions', () {
+      test('Castling rejected if King is in check', () {
+        const checkFen = 'r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1';
+        final chess = chess_lib.Chess.fromFEN(checkFen);
+        // Put white king in check
+        chess.put(chess_lib.Piece(chess_lib.PieceType.ROOK, chess_lib.Color.BLACK), 'e2');
+        expect(chess.in_check, isTrue);
+        expect(chess.move({'from': 'e1', 'to': 'g1'}), isFalse); // kingside rejected
+        expect(chess.move({'from': 'e1', 'to': 'c1'}), isFalse); // queenside rejected
+      });
+
+      test('Castling rejected if King passes through check', () {
+        const passCheckFen = 'r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1';
+        final chess = chess_lib.Chess.fromFEN(passCheckFen);
+        // Put a black rook on f8 attacking f1 (passing square for kingside)
+        chess.put(chess_lib.Piece(chess_lib.PieceType.ROOK, chess_lib.Color.BLACK), 'f8');
+        expect(chess.move({'from': 'e1', 'to': 'g1'}), isFalse); // kingside rejected
+      });
+
+      test('Castling rejected if King lands in check', () {
+        const landCheckFen = 'r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1';
+        final chess = chess_lib.Chess.fromFEN(landCheckFen);
+        // Put a black rook on g8 attacking g1 (landing square for kingside)
+        chess.put(chess_lib.Piece(chess_lib.PieceType.ROOK, chess_lib.Color.BLACK), 'g8');
+        expect(chess.move({'from': 'e1', 'to': 'g1'}), isFalse); // kingside rejected
+      });
+
+      test('Castling rejected if pieces are between King and Rook', () {
+        const blockedFen = 'r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1';
+        final chess = chess_lib.Chess.fromFEN(blockedFen);
+        // Block kingside
+        chess.put(chess_lib.Piece(chess_lib.PieceType.KNIGHT, chess_lib.Color.WHITE), 'f1');
+        expect(chess.move({'from': 'e1', 'to': 'g1'}), isFalse);
+      });
+    });
+
+    test('En passant right expires if not taken immediately', () {
+      final chess = chess_lib.Chess();
+      expect(chess.move({'from': 'e2', 'to': 'e4'}), isTrue);
+      expect(chess.move({'from': 'a7', 'to': 'a6'}), isTrue);
+      expect(chess.move({'from': 'e4', 'to': 'e5'}), isTrue);
+      // Black moves pawn two squares
+      expect(chess.move({'from': 'd7', 'to': 'd5'}), isTrue);
+      // White could play en passant now (exd6), but makes a different move
+      expect(chess.move({'from': 'h2', 'to': 'h3'}), isTrue);
+      expect(chess.move({'from': 'a6', 'to': 'a5'}), isTrue);
+      // Now White tries en passant -> should fail
+      expect(chess.move({'from': 'e5', 'to': 'd6'}), isFalse);
+    });
+
+    test('Pinned piece self-check is illegal', () {
+      const pinFen = 'k7/8/8/8/8/8/4R3/4K3 b - - 0 1';
+      final chess = chess_lib.Chess.fromFEN(pinFen);
+      // Put black rook on e8, pinning white rook on e2 to white king on e1
+      chess.put(chess_lib.Piece(chess_lib.PieceType.ROOK, chess_lib.Color.BLACK), 'e8');
+      chess.turn = chess_lib.Color.WHITE; // White to move
+      // Moving rook off the e-file exposes king to check
+      expect(chess.move({'from': 'e2', 'to': 'f2'}), isFalse);
+      expect(chess.move({'from': 'e2', 'to': 'e3'}), isTrue); // moving along the pin is legal
+    });
+
+    test('Smothered mate is correctly detected', () {
+      // Classic smothered mate pattern via legal move sequence
+      final chess = chess_lib.Chess();
+      final moves = ['e4', 'e5', 'Nf3', 'Nc6', 'Bc4', 'Nd4', 'Nxe5', 'Qg5', 'Nxf7', 'Qxg2', 'Rf1', 'Qxe4+', 'Be2', 'Nf3#'];
+      for (final move in moves) {
+        chess.move(move);
+      }
+      expect(chess.in_checkmate, isTrue);
+    });
+
+    test('SAN disambiguation generates correct notation', () {
+      // Two white rooks on a1 and h1, black king on e8, white king on a2
+      const rooksFen = '4k3/8/8/8/8/8/K7/R6R w - - 0 1';
+      final chess = chess_lib.Chess.fromFEN(rooksFen);
+      // If we pass a disambiguated SAN, the engine must correctly parse and apply it
+      final move = chess.move('Rae1+');
+      expect(move, isTrue);
+      // The FEN should reflect that the a1 rook moved to e1
+      expect(chess.fen.startsWith('4k3/8/8/8/8/8/K7/4R2R'), isTrue);
+    });
   });
 
   group('Firestore Transaction & Security Constraints Tests', () {
@@ -195,6 +278,9 @@ void main() {
         isCheckmate: false,
         newStatus: MatchStatus.active,
         clientMoveId: 'client-move-uuid-1',
+        fromSquare: 'e2',
+        toSquare: 'e4',
+        useLocalFallback: true,
       );
 
       // Verify match state updated
@@ -245,7 +331,10 @@ void main() {
         isCheck: false,
         isCheckmate: false,
         newStatus: MatchStatus.active,
-        clientMoveId: 'duplicate-id-123',
+        clientMoveId: 'client-move-uuid-1',
+        fromSquare: 'e2',
+        toSquare: 'e4',
+        useLocalFallback: true,
       );
 
       // Second submit with identical clientMoveId must be rejected
@@ -259,7 +348,10 @@ void main() {
           isCheck: false,
           isCheckmate: false,
           newStatus: MatchStatus.active,
-          clientMoveId: 'duplicate-id-123',
+          clientMoveId: 'client-move-uuid-1',
+          fromSquare: 'e2',
+          toSquare: 'e4',
+          useLocalFallback: true,
         ),
         throwsA(isA<DuplicateMoveException>()),
       );
@@ -273,18 +365,24 @@ void main() {
         timeControlMillis: 600000,
       );
 
+      final chess = chess_lib.Chess.fromFEN(match.currentFen);
+      chess.move({'from': 'e2', 'to': 'e4'});
+
       // Black attempts to move while it is White's turn
       expect(
         () async => await firestoreService.submitMoveTransaction(
           matchId: match.matchId,
           playerUid: 'user_black',
-          newFen: 'fake_fen',
-          san: 'e5',
+          newFen: chess.fen,
+          san: 'e4',
           moveNumber: 1,
           isCheck: false,
           isCheckmate: false,
           newStatus: MatchStatus.active,
-          clientMoveId: 'client-move-2',
+          clientMoveId: 'client-move-uuid-1',
+          fromSquare: 'e2',
+          toSquare: 'e4',
+          useLocalFallback: true,
         ),
         throwsA(isA<OutOfTurnException>()),
       );
@@ -303,6 +401,8 @@ void main() {
           playerUid: 'imposter_uid',
           newFen: 'fake_fen',
           san: 'e4',
+          fromSquare: 'e2',
+          toSquare: 'e4',
           moveNumber: 1,
           isCheck: false,
           isCheckmate: false,
@@ -341,6 +441,7 @@ void main() {
         () async => await firestoreService.findOrCreateMatchmakingMatch(
           uid: 'banned_user',
           timeControlMillis: 600000,
+          isTimedMatch: true,
         ),
         throwsA(isA<AuthRequiredException>()),
       );
@@ -353,19 +454,73 @@ void main() {
         matchType: 'human',
       );
 
-      await firestoreService.resignMatch(
-        matchId: match.matchId,
-        resigningUid: 'user_white',
-      );
+      await firestoreService.resignMatch(matchId: match.matchId, resigningUid: 'user_white');
 
       final updatedDoc = await fakeFirestore
           .collection(ChessConstants.matchesCollection)
           .doc(match.matchId)
           .get();
-      final updatedMatch = ChessMatch.fromJson(updatedDoc.data()!);
 
+      final updatedMatch = ChessMatch.fromJson(updatedDoc.data()!);
       expect(updatedMatch.status, MatchStatus.resignation);
       expect(updatedMatch.winnerUid, 'user_black');
+    });
+
+    test('Untimed match abandonment claim succeeds after 24 hours', () async {
+      final match = await firestoreService.createMatch(
+        whiteUid: 'user_white',
+        blackUid: 'user_black',
+        matchType: 'human',
+        isTimedMatch: false,
+      );
+
+      // Force lastMoveServerTimestamp to 25 hours ago
+      final pastDate = DateTime.now().subtract(const Duration(hours: 25));
+      await fakeFirestore
+          .collection(ChessConstants.matchesCollection)
+          .doc(match.matchId)
+          .update({'lastMoveServerTimestamp': Timestamp.fromDate(pastDate)});
+
+      // It's White's turn, so Black claims abandonment
+      await firestoreService.claimAbandonment(matchId: match.matchId, claimantUid: 'user_black');
+
+      final updatedDoc = await fakeFirestore
+          .collection(ChessConstants.matchesCollection)
+          .doc(match.matchId)
+          .get();
+
+      final updatedMatch = ChessMatch.fromJson(updatedDoc.data()!);
+      expect(updatedMatch.status, MatchStatus.abandoned);
+      expect(updatedMatch.winnerUid, 'user_black');
+    });
+
+    test('Untimed match abandonment claim fails if less than 24 hours', () async {
+      final match = await firestoreService.createMatch(
+        whiteUid: 'user_white',
+        blackUid: 'user_black',
+        matchType: 'human',
+        isTimedMatch: false,
+      );
+
+      // Force lastMoveServerTimestamp to 1 hour ago
+      final pastDate = DateTime.now().subtract(const Duration(hours: 1));
+      await fakeFirestore
+          .collection(ChessConstants.matchesCollection)
+          .doc(match.matchId)
+          .update({'lastMoveServerTimestamp': Timestamp.fromDate(pastDate)});
+
+      // Black tries to claim
+      await firestoreService.claimAbandonment(matchId: match.matchId, claimantUid: 'user_black');
+
+      final updatedDoc = await fakeFirestore
+          .collection(ChessConstants.matchesCollection)
+          .doc(match.matchId)
+          .get();
+
+      final updatedMatch = ChessMatch.fromJson(updatedDoc.data()!);
+      // Status should remain active
+      expect(updatedMatch.status, MatchStatus.active);
+      expect(updatedMatch.winnerUid, isNull);
     });
 
     test('Claim timeout sets status to whiteTimeout / blackTimeout', () async {
