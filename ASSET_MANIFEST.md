@@ -1,4 +1,3 @@
-
 # Asset Manifest
 
 This document records the licensing and origin of all media assets used in the project, fulfilling the strict license-aware collector requirement.
