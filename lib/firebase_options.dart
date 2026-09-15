@@ -45,21 +45,8 @@ class DefaultFirebaseOptions {
     }
   }
 
-  static const String _webApiKey = String.fromEnvironment(
-    'FIREBASE_WEB_API_KEY',
-    defaultValue: 'AIzaSy_WEB_KEY_PLACEHOLDER',
-  );
-  static const String _androidApiKey = String.fromEnvironment(
-    'FIREBASE_ANDROID_API_KEY',
-    defaultValue: 'AIzaSy_ANDROID_KEY_PLACEHOLDER',
-  );
-  static const String _iosApiKey = String.fromEnvironment(
-    'FIREBASE_IOS_API_KEY',
-    defaultValue: 'AIzaSy_IOS_KEY_PLACEHOLDER',
-  );
-
   static const FirebaseOptions web = FirebaseOptions(
-    apiKey: _webApiKey,
+    apiKey: 'AIzaSyDwmJ5E7GNMN73eCH0OcV7eguJSqOBLumE',
     appId: '1:84280519183:web:a4a9f83b8ef090b23f117a',
     messagingSenderId: '84280519183',
     projectId: 'chessical1',
@@ -68,7 +55,7 @@ class DefaultFirebaseOptions {
   );
 
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: _androidApiKey,
+    apiKey: 'AIzaSyDwmJ5E7GNMN73eCH0OcV7eguJSqOBLumE',
     appId: '1:84280519183:android:a4a9f83b8ef090b23f117a',
     messagingSenderId: '84280519183',
     projectId: 'chessical1',
@@ -76,7 +63,7 @@ class DefaultFirebaseOptions {
   );
 
   static const FirebaseOptions ios = FirebaseOptions(
-    apiKey: _iosApiKey,
+    apiKey: 'AIzaSyCm9Vn4Q2X8s6mlgxlnckoPWiYwWDIchSc',
     appId: '1:84280519183:ios:648ff6f0428f24743f117a',
     messagingSenderId: '84280519183',
     projectId: 'chessical1',
