@@ -43,30 +43,46 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
     final uid = auth.currentUid;
     if (uid.isNotEmpty) {
-      var profile = await firestore.getUserProfile(uid);
-      if (profile == null) {
-        profile = UserProfile(
-          uid: uid,
-          displayName: 'Grandmaster_${uid.length >= 4 ? uid.substring(0, 4) : uid}',
-          eloRating: ChessConstants.defaultElo,
-          gamesPlayed: 0,
-          wins: 0,
-          losses: 0,
-          draws: 0,
-          createdAt: DateTime.now(),
-          lastActiveAt: DateTime.now(),
-        );
-        await firestore.saveUserProfile(profile);
-      }
+      try {
+        var profile = await firestore.getUserProfile(uid).timeout(const Duration(seconds: 5));
+        if (profile == null) {
+          profile = UserProfile(
+            uid: uid,
+            displayName: 'Grandmaster_${uid.length >= 4 ? uid.substring(0, 4) : uid}',
+            eloRating: ChessConstants.defaultElo,
+            gamesPlayed: 0,
+            wins: 0,
+            losses: 0,
+            draws: 0,
+            createdAt: DateTime.now(),
+            lastActiveAt: DateTime.now(),
+          );
+          // Try to save, but don't block forever if it fails
+          try {
+            await firestore.saveUserProfile(profile).timeout(const Duration(seconds: 3));
+          } catch (_) {}
+        }
 
-      final pastMatches = await firestore.getUserMatchHistory(uid);
+        final pastMatches = await firestore.getUserMatchHistory(uid).timeout(const Duration(seconds: 5));
 
-      if (mounted) {
-        setState(() {
-          _userProfile = profile;
-          _pastMatches = pastMatches;
-          _isLoadingProfile = false;
-        });
+        if (mounted) {
+          setState(() {
+            _userProfile = profile;
+            _pastMatches = pastMatches;
+            _isLoadingProfile = false;
+          });
+        }
+      } catch (e) {
+        // Handle timeout or Firestore exception (e.g. invalid API keys)
+        if (mounted) {
+          setState(() => _isLoadingProfile = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Failed to load profile from database: $e'),
+              backgroundColor: BoardThemes.dangerAlert,
+            ),
+          );
+        }
       }
     } else {
       if (mounted) {
