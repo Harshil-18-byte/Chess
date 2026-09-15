@@ -2,10 +2,134 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../../core/constants/chess_constants.dart';
 import '../../../core/theme/board_themes.dart';
-import '../../../core/theme/app_typography.dart';
 
-/// Renders a responsive player clock with 100ms visual ticker and authoritative Firestore resyncing.
-class GameClockWidget extends StatefulWidget {
+/// Highly precise digital timer component.
+class GameClock extends StatefulWidget {
+  final int millisecondsLeft;
+  final bool isRunning;
+  final Color activeColor;
+  final VoidCallback? onTimeout;
+
+  const GameClock({
+    super.key,
+    required this.millisecondsLeft,
+    required this.isRunning,
+    required this.activeColor,
+    this.onTimeout,
+  });
+
+  @override
+  State<GameClock> createState() => _GameClockState();
+}
+
+class _GameClockState extends State<GameClock> {
+  late int _currentMillis;
+  Timer? _ticker;
+  bool _hasTimedOut = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentMillis = widget.millisecondsLeft;
+    if (widget.isRunning) _startClock();
+  }
+
+  @override
+  void didUpdateWidget(covariant GameClock oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.millisecondsLeft != widget.millisecondsLeft) {
+      _currentMillis = widget.millisecondsLeft;
+      if (_currentMillis > 0) _hasTimedOut = false;
+    }
+    if (oldWidget.isRunning != widget.isRunning) {
+      widget.isRunning ? _startClock() : _stopClock();
+    }
+  }
+
+  @override
+  void dispose() {
+    _stopClock();
+    super.dispose();
+  }
+
+  void _startClock() {
+    _stopClock();
+    if (_currentMillis <= 0) return;
+    
+    // Switch to high-frequency updates if remaining time is critically low
+    final duration = _currentMillis < 10000 ? const Duration(milliseconds: 100) : const Duration(seconds: 1);
+    _ticker = Timer.periodic(duration, (timer) {
+      setState(() {
+        if (_currentMillis <= 0) {
+          _currentMillis = 0;
+          _stopClock();
+          if (!_hasTimedOut) {
+            _hasTimedOut = true;
+            widget.onTimeout?.call();
+          }
+        } else {
+          _currentMillis -= duration.inMilliseconds;
+        }
+      });
+      // Adjust ticker frequency dynamically if crossing threshold
+      if (_currentMillis < 10000 && duration.inMilliseconds == 1000) {
+        _startClock(); 
+      }
+    });
+  }
+
+  void _stopClock() {
+    _ticker?.cancel();
+  }
+
+  String _formatTime(int totalMillis) {
+    if (totalMillis <= 0) return "00:00.0";
+    final int minutes = (totalMillis / 60000).floor();
+    final int seconds = ((totalMillis % 60000) / 1000).floor();
+    
+    if (totalMillis < 10000) {
+      final int tenths = ((totalMillis % 1000) / 100).floor();
+      return "${seconds.toString().padLeft(2, '0')}.${tenths.toString()}";
+    }
+    
+    return "${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}";
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bool isCritical = _currentMillis < 10000;
+    
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: const Color(0xFF111827),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(
+          color: widget.isRunning ? widget.activeColor : BoardThemes.midSlate,
+          width: 1,
+        ),
+      ),
+      child: Text(
+        _formatTime(_currentMillis),
+        style: TextStyle(
+          color: isCritical && widget.isRunning ? BoardThemes.brandEmber : BoardThemes.pureWhite,
+          fontFamily: 'Courier',
+          fontSize: 18,
+          fontWeight: FontWeight.bold,
+          shadows: widget.isRunning ? [
+            Shadow(
+              color: widget.activeColor.withAlpha(128), // 0.5 opacity
+              blurRadius: 8,
+            )
+          ] : null,
+        ),
+      ),
+    );
+  }
+}
+
+/// Renders a responsive player clock wrapper for both sides, managing active layout states.
+class GameClockWidget extends StatelessWidget {
   final int whiteMillisRemaining;
   final int blackMillisRemaining;
   final String activeTurn; // 'w' or 'b'
@@ -31,91 +155,6 @@ class GameClockWidget extends StatefulWidget {
     this.onTimeout,
   });
 
-  @override
-  State<GameClockWidget> createState() => _GameClockWidgetState();
-}
-
-class _GameClockWidgetState extends State<GameClockWidget> {
-  Timer? _ticker;
-  late int _whiteMillis;
-  late int _blackMillis;
-  DateTime _lastTickTime = DateTime.now();
-
-  @override
-  void initState() {
-    super.initState();
-    _resyncAuthoritativeClocks();
-    _startLocalTicker();
-  }
-
-  @override
-  void didUpdateWidget(covariant GameClockWidget oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    // Instant snap-to-authoritative server time on snapshot arrival
-    if (oldWidget.whiteMillisRemaining != widget.whiteMillisRemaining ||
-        oldWidget.blackMillisRemaining != widget.blackMillisRemaining ||
-        oldWidget.activeTurn != widget.activeTurn ||
-        oldWidget.isMatchActive != widget.isMatchActive) {
-      _resyncAuthoritativeClocks();
-    }
-  }
-
-  void _resyncAuthoritativeClocks() {
-    _whiteMillis = widget.whiteMillisRemaining;
-    _blackMillis = widget.blackMillisRemaining;
-    _lastTickTime = DateTime.now();
-  }
-
-  void _startLocalTicker() {
-    _ticker?.cancel();
-    if (!widget.isMatchActive) return;
-
-    _ticker = Timer.periodic(const Duration(milliseconds: 100), (timer) {
-      if (!widget.isMatchActive || !mounted) return;
-
-      final now = DateTime.now();
-      final elapsed = now.difference(_lastTickTime).inMilliseconds;
-      _lastTickTime = now;
-
-      setState(() {
-        if (widget.activeTurn == 'w') {
-          _whiteMillis = (_whiteMillis - elapsed).clamp(0, 86400000);
-          if (_whiteMillis <= 0) {
-            timer.cancel();
-            widget.onTimeout?.call();
-          }
-        } else {
-          _blackMillis = (_blackMillis - elapsed).clamp(0, 86400000);
-          if (_blackMillis <= 0) {
-            timer.cancel();
-            widget.onTimeout?.call();
-          }
-        }
-      });
-    });
-  }
-
-  @override
-  void dispose() {
-    _ticker?.cancel();
-    super.dispose();
-  }
-
-  String _formatTime(int millis) {
-    final totalSeconds = (millis / 1000).ceil();
-    final minutes = totalSeconds ~/ 60;
-    final seconds = totalSeconds % 60;
-    final tenths = (millis % 1000) ~/ 100;
-
-    final minStr = minutes.toString().padLeft(2, '0');
-    final secStr = seconds.toString().padLeft(2, '0');
-
-    if (totalSeconds < 20 && widget.isMatchActive) {
-      return '$minStr:$secStr.$tenths';
-    }
-    return '$minStr:$secStr';
-  }
-
   Widget _buildClockCard({
     required String name,
     required int elo,
@@ -124,17 +163,6 @@ class _GameClockWidgetState extends State<GameClockWidget> {
     required bool isWhite,
   }) {
     final isLowTime = millis < ChessConstants.lowTimeWarningThresholdMillis;
-
-    Color badgeBg;
-    Color textColor;
-    if (isActiveTurn) {
-      // Active turn: white badge → black text for contrast, or dim red when low time.
-      badgeBg = isLowTime ? BoardThemes.midSlate : BoardThemes.pureWhite;
-      textColor = isLowTime ? BoardThemes.offWhite : BoardThemes.pitchBlack;
-    } else {
-      badgeBg = BoardThemes.surfaceCard;
-      textColor = isLowTime ? BoardThemes.mutedSilver : Colors.white;
-    }
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
@@ -150,7 +178,7 @@ class _GameClockWidgetState extends State<GameClockWidget> {
         boxShadow: isActiveTurn && !isLowTime
             ? [
                 BoxShadow(
-                  color: BoardThemes.pureWhite.withValues(alpha: 0.08),
+                  color: BoardThemes.pureWhite.withAlpha(20),
                   blurRadius: 10,
                   spreadRadius: 1,
                 )
@@ -171,9 +199,9 @@ class _GameClockWidgetState extends State<GameClockWidget> {
                     width: 10,
                     height: 10,
                     decoration: BoxDecoration(
-                      color: isWhite ? Colors.white : Colors.black,
+                      color: isWhite ? BoardThemes.pureWhite : BoardThemes.pitchBlack,
                       shape: BoxShape.circle,
-                      border: Border.all(color: Colors.grey.shade400, width: 1),
+                      border: Border.all(color: BoardThemes.mutedSilver, width: 1),
                     ),
                   ),
                   const SizedBox(width: 6),
@@ -182,7 +210,7 @@ class _GameClockWidgetState extends State<GameClockWidget> {
                     style: const TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
-                      color: Colors.white,
+                      color: BoardThemes.pureWhite,
                     ),
                   ),
                 ],
@@ -194,20 +222,12 @@ class _GameClockWidgetState extends State<GameClockWidget> {
             ],
           ),
           const SizedBox(width: 16),
-          // Clock Digits Display
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            decoration: BoxDecoration(
-              color: badgeBg,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Text(
-              _formatTime(millis),
-              style: AppTypography.clockLarge.copyWith(
-                color: textColor,
-                fontSize: 18,
-              ),
-            ),
+          // Precise Digital Timer
+          GameClock(
+            millisecondsLeft: millis,
+            isRunning: isActiveTurn && isMatchActive,
+            activeColor: isWhite ? const Color(0xFFF59E0B) : BoardThemes.brandEmber,
+            onTimeout: onTimeout,
           ),
         ],
       ),
@@ -216,25 +236,25 @@ class _GameClockWidgetState extends State<GameClockWidget> {
 
   @override
   Widget build(BuildContext context) {
-    final isWhitePlayer = widget.playerColor == 'w';
+    final isWhitePlayer = playerColor == 'w';
 
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         // Left: White Player
         _buildClockCard(
-          name: isWhitePlayer ? widget.playerName : widget.opponentName,
-          elo: isWhitePlayer ? widget.playerElo : widget.opponentElo,
-          millis: _whiteMillis,
-          isActiveTurn: widget.activeTurn == 'w' && widget.isMatchActive,
+          name: isWhitePlayer ? playerName : opponentName,
+          elo: isWhitePlayer ? playerElo : opponentElo,
+          millis: whiteMillisRemaining,
+          isActiveTurn: activeTurn == 'w' && isMatchActive,
           isWhite: true,
         ),
         // Right: Black Player
         _buildClockCard(
-          name: isWhitePlayer ? widget.opponentName : widget.playerName,
-          elo: isWhitePlayer ? widget.opponentElo : widget.playerElo,
-          millis: _blackMillis,
-          isActiveTurn: widget.activeTurn == 'b' && widget.isMatchActive,
+          name: isWhitePlayer ? opponentName : playerName,
+          elo: isWhitePlayer ? opponentElo : playerElo,
+          millis: blackMillisRemaining,
+          isActiveTurn: activeTurn == 'b' && isMatchActive,
           isWhite: false,
         ),
       ],
