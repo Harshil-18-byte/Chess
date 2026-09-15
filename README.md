@@ -519,3 +519,6 @@ cd functions && npm run build && cd ..
 ## License
 
 This project is licensed under the MIT License — see the [LICENSE](./LICENSE) file for details.
+
+
+<!-- Document reviewed and updated: Phase 5 (Liquid Glass UI & Match History Integration) -->
