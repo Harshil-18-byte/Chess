@@ -1,5 +1,7 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:firebase_database/firebase_database.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:chess/chess.dart' as chess_lib;
 import '../../core/rules/material_calculator.dart';
@@ -12,6 +14,7 @@ import '../../services/pgn_service.dart';
 import '../../services/live_drag_service.dart';
 import '../../services/settings_service.dart';
 import '../../state/game_state_notifier.dart';
+import 'package:enterprise_chess/views/dashboard/match_setup_screen.dart';
 import 'widgets/board_square.dart';
 import 'widgets/game_clock.dart';
 import 'widgets/evaluation_bar.dart';
@@ -21,6 +24,7 @@ import 'board_3d/chess_scene_controller.dart';
 import 'board_3d/move_animation_controller.dart';
 import 'board_3d/board_3d_view.dart';
 import '../widgets/loading_overlay.dart';
+import '../../core/errors/error_boundary.dart';
 
 /// Interactive chess board supporting both high-performance 2D and perspective 3D rendering with live fallback.
 class GameBoardView extends ConsumerStatefulWidget {
@@ -48,12 +52,25 @@ class _GameBoardViewState extends ConsumerState<GameBoardView> {
   final GlobalKey _boardKey = GlobalKey();
 
   DatabaseReference? _presenceRef;
+  late StreamSubscription<List<ConnectivityResult>> _connectivitySubscription;
+  bool _isOffline = false;
 
   @override
   void initState() {
     super.initState();
     _sceneController = ChessSceneController();
     _moveAnimationController = MoveAnimationController();
+
+    _connectivitySubscription = Connectivity().onConnectivityChanged.listen((List<ConnectivityResult> results) {
+      if (mounted) {
+        setState(() => _isOffline = results.contains(ConnectivityResult.none));
+      }
+    });
+    Connectivity().checkConnectivity().then((results) {
+      if (mounted) {
+        setState(() => _isOffline = results.contains(ConnectivityResult.none));
+      }
+    });
 
     // Activate match subscription in Riverpod notifier
     Future.microtask(() {
@@ -69,6 +86,7 @@ class _GameBoardViewState extends ConsumerState<GameBoardView> {
 
   @override
   void dispose() {
+    _connectivitySubscription.cancel();
     _presenceRef?.remove();
     _sceneController.dispose();
     _moveAnimationController.dispose();
@@ -218,7 +236,7 @@ class _GameBoardViewState extends ConsumerState<GameBoardView> {
           backgroundColor: BoardThemes.surfaceCard,
           title: const Text(
             'Promote Pawn',
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+            style: TextStyle(color: BoardThemes.pureWhite, fontWeight: FontWeight.bold),
           ),
           content: Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -247,7 +265,7 @@ class _GameBoardViewState extends ConsumerState<GameBoardView> {
         ),
         child: Text(
           label,
-          style: const TextStyle(fontSize: 14, color: Colors.white),
+          style: AppTypography.bodyRegular,
         ),
       ),
     );
@@ -384,11 +402,28 @@ class _GameBoardViewState extends ConsumerState<GameBoardView> {
                   ElevatedButton(
                     onPressed: () {
                       Navigator.of(context).pop();
+                      Navigator.of(context).pushReplacement(
+                        MaterialPageRoute(
+                          builder: (_) => MatchSetupScreen(matchType: match.matchType == 'engine' ? 'engine' : 'human'),
+                        ),
+                      );
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: BoardThemes.brandEmber,
+                      foregroundColor: BoardThemes.pitchBlack,
+                      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+                    ),
+                    child: const Text('Rematch'),
+                  ),
+                  const SizedBox(width: 10),
+                  ElevatedButton(
+                    onPressed: () {
+                      Navigator.of(context).pop();
                       Navigator.of(context).pop();
                     },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: BoardThemes.accentCyan,
-                      foregroundColor: Colors.black,
+                      foregroundColor: BoardThemes.pitchBlack,
                       padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
                     ),
                     child: const Text('Lobby'),
@@ -434,7 +469,7 @@ class _GameBoardViewState extends ConsumerState<GameBoardView> {
         elevation: 0,
         title: Text(
           'Match: ${widget.matchId.length > 8 ? widget.matchId.substring(0, 8) : widget.matchId}',
-          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+          style: AppTypography.labelLarge,
         ),
         actions: [
           // ── Sound toggle chip ─────────────────────────────────────────
@@ -472,7 +507,7 @@ class _GameBoardViewState extends ConsumerState<GameBoardView> {
               child: Text(
                 'Menu',
                 style: TextStyle(
-                  color: Colors.white70,
+                  color: BoardThemes.mutedSilver,
                   fontSize: 13,
                   fontWeight: FontWeight.w500,
                 ),
@@ -511,11 +546,11 @@ class _GameBoardViewState extends ConsumerState<GameBoardView> {
             itemBuilder: (context) => [
               const PopupMenuItem(
                 value: 'pgn',
-                child: Text('Copy PGN', style: TextStyle(color: Colors.white)),
+                child: Text('Copy PGN', style: TextStyle(color: BoardThemes.pureWhite)),
               ),
               const PopupMenuItem(
                 value: 'fen',
-                child: Text('Copy FEN', style: TextStyle(color: Colors.white)),
+                child: Text('Copy FEN', style: TextStyle(color: BoardThemes.pureWhite)),
               ),
             ],
           ),
@@ -549,7 +584,9 @@ class _GameBoardViewState extends ConsumerState<GameBoardView> {
           final opponentAdvantage =
               isPlayerWhite ? material.blackAdvantage : material.whiteAdvantage;
 
-          return SafeArea(
+          return Stack(
+            children: [
+              SafeArea(
             child: SingleChildScrollView(
               child: Padding(
                 padding: const EdgeInsets.all(12.0),
@@ -566,7 +603,7 @@ class _GameBoardViewState extends ConsumerState<GameBoardView> {
                             if (match.timeControlPreset != null) ...[
                               Text(
                                 match.timeControlPreset!,
-                                style: const TextStyle(color: Colors.white70, fontSize: 12),
+                                style: const TextStyle(color: BoardThemes.mutedSilver, fontSize: 12),
                               ),
                               const SizedBox(height: 8),
                             ],
@@ -594,7 +631,7 @@ class _GameBoardViewState extends ConsumerState<GameBoardView> {
                         padding: const EdgeInsets.only(bottom: 12),
                         child: Text(
                           'Untimed Match',
-                          style: BoardThemes.bodyRegular.copyWith(color: Colors.white70),
+                          style: BoardThemes.bodyRegular.copyWith(color: BoardThemes.mutedSilver),
                         ),
                       ),
 
@@ -635,7 +672,7 @@ class _GameBoardViewState extends ConsumerState<GameBoardView> {
                                       .read(gameStateNotifierProvider.notifier)
                                       .respondToDraw(false),
                                   style: OutlinedButton.styleFrom(
-                                    foregroundColor: Colors.white,
+                                    foregroundColor: BoardThemes.pureWhite,
                                     padding: const EdgeInsets.symmetric(horizontal: 12),
                                   ),
                                   child: const Text('Decline'),
@@ -655,12 +692,12 @@ class _GameBoardViewState extends ConsumerState<GameBoardView> {
                           color: BoardThemes.surfaceCard,
                           borderRadius: BorderRadius.circular(16),
                           border: Border.all(color: BoardThemes.accentCyan),
-                          boxShadow: const [BoxShadow(color: Colors.black45, blurRadius: 10)],
+                          boxShadow: const [BoxShadow(color: BoardThemes.darkCharcoal, blurRadius: 10)],
                         ),
                         child: Text(
                           _activeReaction!,
                           style: const TextStyle(
-                            color: Colors.white,
+                            color: BoardThemes.pureWhite,
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
                           ),
@@ -688,15 +725,30 @@ class _GameBoardViewState extends ConsumerState<GameBoardView> {
                               border: Border.all(color: BoardThemes.borderSubtle, width: 2),
                               boxShadow: const [
                                 BoxShadow(
-                                  color: Colors.black54,
+                                  color: BoardThemes.midSlate,
                                   blurRadius: 18,
                                   offset: Offset(0, 8),
                                 ),
                               ],
                             ),
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(10),
-                              child: Board3DView(
+                            child: ErrorBoundary(
+                              fallbackBuilder: (context, error, stackTrace) {
+                                WidgetsBinding.instance.addPostFrameCallback((_) {
+                                  ref.read(render3dProvider.notifier).setRender3d(false);
+                                });
+                                return const Center(
+                                  child: Padding(
+                                    padding: EdgeInsets.all(16.0),
+                                    child: Text(
+                                      "3D Engine Error, falling back to 2D...",
+                                      style: TextStyle(color: BoardThemes.dangerAlert),
+                                    ),
+                                  ),
+                                );
+                              },
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(10),
+                                child: Board3DView(
                                 fen: match.currentFen,
                                 selectedSquare: _selectedSquare,
                                 legalDestinations: _legalDestinations,
@@ -721,6 +773,7 @@ class _GameBoardViewState extends ConsumerState<GameBoardView> {
                                 },
                               ),
                             ),
+                            ),
                           );
                         } else {
                           final ghostState = ghostStateAsync.value;
@@ -733,7 +786,7 @@ class _GameBoardViewState extends ConsumerState<GameBoardView> {
                               borderRadius: BorderRadius.circular(8),
                               boxShadow: const [
                                 BoxShadow(
-                                  color: Colors.black45,
+                                  color: BoardThemes.darkCharcoal,
                                   blurRadius: 16,
                                   offset: Offset(0, 6),
                                 ),
@@ -871,7 +924,7 @@ class _GameBoardViewState extends ConsumerState<GameBoardView> {
                             },
                             style: ElevatedButton.styleFrom(
                               backgroundColor: BoardThemes.surfaceCard,
-                              foregroundColor: Colors.white,
+                              foregroundColor: BoardThemes.pureWhite,
                             ),
                             child: const Text('CHAT'),
                           ),
@@ -880,7 +933,7 @@ class _GameBoardViewState extends ConsumerState<GameBoardView> {
                                 ref.read(gameStateNotifierProvider.notifier).offerDraw(),
                             style: ElevatedButton.styleFrom(
                               backgroundColor: BoardThemes.surfaceCard,
-                              foregroundColor: Colors.white,
+                              foregroundColor: BoardThemes.pureWhite,
                             ),
                             child: const Text('OFFER DRAW'),
                           ),
@@ -889,7 +942,7 @@ class _GameBoardViewState extends ConsumerState<GameBoardView> {
                                 ref.read(gameStateNotifierProvider.notifier).resign(),
                             style: ElevatedButton.styleFrom(
                               backgroundColor: BoardThemes.dangerAlert.withAlpha(200),
-                              foregroundColor: Colors.white,
+                              foregroundColor: BoardThemes.pureWhite,
                             ),
                             child: const Text('RESIGN'),
                           ),
@@ -917,7 +970,7 @@ class _GameBoardViewState extends ConsumerState<GameBoardView> {
                               onPressed: () => _showGameOverDialog(match),
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: BoardThemes.accentCyan,
-                                foregroundColor: Colors.black,
+                                foregroundColor: BoardThemes.pitchBlack,
                               ),
                               child: const Text('Summary'),
                             ),
@@ -954,7 +1007,7 @@ class _GameBoardViewState extends ConsumerState<GameBoardView> {
                                     style: const TextStyle(
                                       fontSize: 12,
                                       fontWeight: FontWeight.w600,
-                                      color: Colors.white,
+                                      color: BoardThemes.pureWhite,
                                     ),
                                   ),
                                 ),
@@ -969,7 +1022,22 @@ class _GameBoardViewState extends ConsumerState<GameBoardView> {
                   ],
                 ),
               ),
-            ),
+                ),
+              ),
+              if (_isOffline)
+                Positioned.fill(
+                  child: Container(
+                    color: BoardThemes.midSlate,
+                    child: Center(
+                      child: LiquidGlassContainer(
+                        padding: const EdgeInsets.all(24),
+                        borderRadius: BorderRadius.circular(16),
+                        child: const Text('Reconnecting...', style: TextStyle(color: BoardThemes.pureWhite, fontSize: 18, fontWeight: FontWeight.bold)),
+                      ),
+                    ),
+                  ),
+                ),
+            ],
           );
         },
       ),
