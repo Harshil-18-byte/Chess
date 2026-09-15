@@ -24,6 +24,11 @@ service cloud.firestore {
       return isServerTimestamp(reqData.lastMoveServerTimestamp);
     }
 
+    function isBanned() {
+      let profile = get(/databases/$(database)/documents/users/$(request.auth.uid));
+      return profile != null && profile.data.get('isBanned', false) == true;
+    }
+
     // ==========================================
     // USER PROFILES
     // ==========================================
@@ -43,6 +48,7 @@ service cloud.firestore {
       allow read: if isAuthenticated();
       // Users can only join/enqueue themselves with server timestamp
       allow create: if isUser(userId)
+                    && !isBanned()
                     && request.resource.data.uid == userId
                     && isServerTimestamp(request.resource.data.queuedAt);
       // Users can leave queue, or an opponent can pop them on match creation
@@ -63,7 +69,7 @@ service cloud.firestore {
          resource.data.blackUid == 'engine_stockfish');
 
       // Match creation: Must be a participant, with initial active state
-      allow create: if isAuthenticated() &&
+      allow create: if isAuthenticated() && !isBanned() &&
         (request.resource.data.whiteUid == request.auth.uid ||
          request.resource.data.blackUid == request.auth.uid) &&
         request.resource.data.status == 'active' &&
