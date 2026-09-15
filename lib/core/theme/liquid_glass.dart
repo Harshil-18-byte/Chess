@@ -209,9 +209,9 @@ class _SpecularHighlight extends StatelessWidget {
           gradient: LinearGradient(
             colors: [
               Colors.transparent,
-              Colors.white.withValues(alpha: 0.30),
-              Colors.white.withValues(alpha: 0.55),
-              Colors.white.withValues(alpha: 0.30),
+              BoardThemes.pureWhite.withValues(alpha: 0.30),
+              BoardThemes.pureWhite.withValues(alpha: 0.55),
+              BoardThemes.pureWhite.withValues(alpha: 0.30),
               Colors.transparent,
             ],
             stops: const [0.0, 0.25, 0.5, 0.75, 1.0],
@@ -268,7 +268,7 @@ Future<T?> showLiquidGlassModal<T>({
   return showModalBottomSheet<T>(
     context: context,
     backgroundColor: Colors.transparent,
-    barrierColor: Colors.black.withValues(alpha: 0.55),
+    barrierColor: BoardThemes.pitchBlack.withValues(alpha: 0.55),
     isDismissible: isDismissible,
     isScrollControlled: true,
     transitionAnimationController: AnimationController(
