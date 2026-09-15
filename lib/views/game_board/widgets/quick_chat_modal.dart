@@ -85,7 +85,7 @@ class QuickChatModal extends StatelessWidget {
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(color: BoardThemes.borderSubtle),
                     ),
-                    child: Text(emote, style: const TextStyle(fontSize: 24)),
+                    child: Text(emote, style: AppTypography.titleLarge),
                   ),
                 );
               }).toList(),
@@ -95,7 +95,7 @@ class QuickChatModal extends StatelessWidget {
             const Text(
               'Preset Messages',
               style: TextStyle(
-                color: Colors.white70,
+                color: BoardThemes.mutedSilver,
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
               ),
@@ -122,7 +122,7 @@ class QuickChatModal extends StatelessWidget {
                     ),
                     child: Text(
                       phrase,
-                      style: const TextStyle(color: Colors.white, fontSize: 13),
+                      style: const TextStyle(color: BoardThemes.pureWhite, fontSize: 13),
                     ),
                   ),
                 ),
