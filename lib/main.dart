@@ -6,7 +6,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'core/theme/board_themes.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'firebase_options.dart';
-import 'views/home_screen.dart';
+import 'package:enterprise_chess/views/dashboard/home_screen.dart';
+import 'package:enterprise_chess/views/auth/welcome_screen.dart';
 import 'services/push_notification_service.dart';
 import 'services/settings_service.dart';
 
@@ -83,19 +84,11 @@ class EnterpriseChessApp extends StatelessWidget {
 }
 
 /// Gatekeeper that ensures the user is authenticated before showing the app.
-class AuthGate extends StatefulWidget {
+class AuthGate extends ConsumerWidget {
   const AuthGate({super.key});
 
   @override
-  State<AuthGate> createState() => _AuthGateState();
-}
-
-class _AuthGateState extends State<AuthGate> {
-  String? _error;
-  bool _isSigningIn = false;
-
-  @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return StreamBuilder<User?>(
       stream: FirebaseAuth.instance.authStateChanges(),
       builder: (context, snapshot) {
@@ -110,75 +103,18 @@ class _AuthGateState extends State<AuthGate> {
         if (snapshot.hasError) {
           return Scaffold(
             body: Center(
-              child: Text('Auth Stream Error: ${snapshot.error}', style: const TextStyle(color: Colors.red)),
+              child: Text('Auth Stream Error: ${snapshot.error}', style: const TextStyle(color: BoardThemes.dangerAlert)),
             ),
           );
         }
 
         if (snapshot.hasData && snapshot.data != null) {
+          // You might also want to check if the profile exists in Firestore.
+          // For now, we will assume a valid user goes to HomeScreen.
           return const HomeScreen();
         }
 
-        // Auto sign-in anonymously for now, per specs.
-        if (FirebaseAuth.instance.currentUser == null && _error == null && !_isSigningIn) {
-          _isSigningIn = true;
-          WidgetsBinding.instance.addPostFrameCallback((_) async {
-            if (FirebaseAuth.instance.currentUser == null) {
-              try {
-                await FirebaseAuth.instance.signInAnonymously();
-              } catch (e) {
-                if (mounted) {
-                  setState(() {
-                    _error = e.toString();
-                    _isSigningIn = false;
-                  });
-                }
-              }
-            }
-          });
-        }
-
-        if (_error != null) {
-          return Scaffold(
-            body: Center(
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(Icons.error_outline, color: Colors.red, size: 48),
-                    const SizedBox(height: 16),
-                    Text(
-                      'Sign-In Failed',
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(color: Colors.red),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      _error!,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(color: Colors.redAccent),
-                    ),
-                    const SizedBox(height: 24),
-                    ElevatedButton(
-                      onPressed: () {
-                        setState(() {
-                          _error = null;
-                        });
-                      },
-                      child: const Text('Retry'),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          );
-        }
-
-        return const Scaffold(
-          body: Center(
-            child: CircularProgressIndicator(color: BoardThemes.brandEmber),
-          ),
-        );
+        return const WelcomeScreen();
       },
     );
   }
