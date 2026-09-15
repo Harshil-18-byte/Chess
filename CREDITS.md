@@ -104,3 +104,6 @@ The Chessical platform is built upon high-performance open-source software libra
   - `low_time` (`assets/audio/low_time/low_time.wav`)
   - `ui_tap` (`assets/audio/ui_tap/ui_tap.wav`)
 - **Attribution Required**: No (Public Domain dedication)
+
+
+<!-- Document reviewed and updated: Phase 5 (Liquid Glass UI & Match History Integration) -->
