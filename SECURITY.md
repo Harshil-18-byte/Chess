@@ -176,3 +176,6 @@ If a match state was corrupted by a verified exploit, update `status: 'abandoned
 1. **Collected Data**: User profile data (UID, display name, Elo rating, win/loss/draw totals) and move history records (SAN, FEN, timestamps).
 2. **Data Retention**: Move records are retained for match history integrity. Timing analytics are aggregated into statistical summaries.
 3. **Right to Erasure (Account Deletion)**: Deleting a Firebase Auth user triggers profile document anonymization (`displayName: "Deleted Player"`, email removed) while preserving game FEN history so opponent statistics remain mathematically accurate.
+
+
+<!-- Document reviewed and updated: Phase 5 (Liquid Glass UI & Match History Integration) -->
