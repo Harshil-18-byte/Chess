@@ -2,6 +2,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:chess/chess.dart' as chess_lib;
+import '../../../core/theme/board_themes.dart';
 import 'chess_scene_controller.dart';
 import 'piece_model_loader.dart';
 import 'square_raycaster.dart';
@@ -194,7 +195,7 @@ class _Board3DViewState extends State<Board3DView>
         ],
       ),
       child: IconButton(
-        icon: Text(label, style: const TextStyle(color: Colors.white70, fontSize: 14, fontWeight: FontWeight.bold)),
+        icon: Text(label, style: TextStyle(color: BoardThemes.mutedSilver, fontSize: 14, fontWeight: FontWeight.bold)),
         tooltip: tooltip,
         constraints: const BoxConstraints(minWidth: 38, minHeight: 38),
         padding: EdgeInsets.zero,
