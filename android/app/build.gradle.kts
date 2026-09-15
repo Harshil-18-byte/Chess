@@ -13,6 +13,7 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
+        isCoreLibraryDesugaringEnabled = true
     }
 
     defaultConfig {
@@ -45,5 +46,10 @@ flutter {
 dependencies {
     // Import the Firebase BoM
     implementation(platform("com.google.firebase:firebase-bom:33.10.0"))
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
 }
 
+tasks.withType<JavaCompile> {
+    options.compilerArgs.add("-Xlint:none")
+    options.isWarnings = false
+}
