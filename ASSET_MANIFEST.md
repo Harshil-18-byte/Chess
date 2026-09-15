@@ -27,3 +27,6 @@ This document records the licensing and origin of all media assets used in the p
 - [x] All Audio assets are CC0.
 - [x] Scraped content or ambiguous licenses (e.g. JohnPablok CC-BY-SA) are entirely excluded.
 - [x] Origin links are maintained for audit trails.
+
+
+<!-- Document reviewed and updated: Phase 5 (Liquid Glass UI & Match History Integration) -->
