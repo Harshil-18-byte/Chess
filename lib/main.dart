@@ -18,8 +18,9 @@ void main() async {
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
     );
-    // Initialize push notifications after Firebase is ready
-    await PushNotificationService().initialize();
+    // Initialize push notifications without awaiting so we don't block runApp
+    // and cause an infinite splash screen if FCM token fetch hangs.
+    PushNotificationService().initialize();
   } catch (_) {
     // If running in offline test or mock harness
   }
@@ -82,8 +83,16 @@ class EnterpriseChessApp extends StatelessWidget {
 }
 
 /// Gatekeeper that ensures the user is authenticated before showing the app.
-class AuthGate extends StatelessWidget {
+class AuthGate extends StatefulWidget {
   const AuthGate({super.key});
+
+  @override
+  State<AuthGate> createState() => _AuthGateState();
+}
+
+class _AuthGateState extends State<AuthGate> {
+  String? _error;
+  bool _isSigningIn = false;
 
   @override
   Widget build(BuildContext context) {
@@ -98,14 +107,72 @@ class AuthGate extends StatelessWidget {
           );
         }
 
+        if (snapshot.hasError) {
+          return Scaffold(
+            body: Center(
+              child: Text('Auth Stream Error: ${snapshot.error}', style: const TextStyle(color: Colors.red)),
+            ),
+          );
+        }
+
         if (snapshot.hasData && snapshot.data != null) {
           return const HomeScreen();
         }
 
         // Auto sign-in anonymously for now, per specs.
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          FirebaseAuth.instance.signInAnonymously();
-        });
+        if (FirebaseAuth.instance.currentUser == null && _error == null && !_isSigningIn) {
+          _isSigningIn = true;
+          WidgetsBinding.instance.addPostFrameCallback((_) async {
+            if (FirebaseAuth.instance.currentUser == null) {
+              try {
+                await FirebaseAuth.instance.signInAnonymously();
+              } catch (e) {
+                if (mounted) {
+                  setState(() {
+                    _error = e.toString();
+                    _isSigningIn = false;
+                  });
+                }
+              }
+            }
+          });
+        }
+
+        if (_error != null) {
+          return Scaffold(
+            body: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.error_outline, color: Colors.red, size: 48),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Sign-In Failed',
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(color: Colors.red),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      _error!,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(color: Colors.redAccent),
+                    ),
+                    const SizedBox(height: 24),
+                    ElevatedButton(
+                      onPressed: () {
+                        setState(() {
+                          _error = null;
+                        });
+                      },
+                      child: const Text('Retry'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        }
 
         return const Scaffold(
           body: Center(
