@@ -55,9 +55,23 @@ class BoardThemes {
   static const Color borderHairline = Color(0x1FFFFFFF);
   static const Color borderSubtle   = Color(0xFF2D2D2D);
 
-  // ─── Board Square Colors (Classic Tournament — unchanged) ────────────────────
+  // ─── Board Square Colors (Classic Tournament — unchanged defaults) ───────────
   static const Color lightSquare = Color(0xFFE2E8F0);
   static const Color darkSquare  = Color(0xFF475569);
+
+  static (Color light, Color dark) getThemeColors(String themeId) {
+    switch (themeId) {
+      case 'neo':
+        return (const Color(0xFF2DD4BF), const Color(0xFF0F172A));
+      case 'liquid':
+        return (const Color(0xFF94A3B8), const Color(0xFF334155));
+      case 'midnight':
+        return (const Color(0xFF4B5563), const Color(0xFF111827));
+      case 'classic':
+      default:
+        return (lightSquare, darkSquare);
+    }
+  }
 
   // ─── Board Highlight Overlays (low-opacity, board use only) ─────────────────
   /// Selected square — cool blue tint kept for accessibility contrast.
