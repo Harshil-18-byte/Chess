@@ -435,3 +435,6 @@ All glass surfaces in the app use `LiquidGlassContainer` with these parameters:
 
 **Stage 7 Additions:**
   7b. **Push notifications** -> Real-time sync vs push notifications division. Verify Cloud Functions send FCM messages to inactive players on turn change or match events. Verify foreground suppression via RTDB presence marker prevents duplicate notifications when the user is actively viewing the match.
+
+
+<!-- Document reviewed and updated: Phase 5 (Liquid Glass UI & Match History Integration) -->
