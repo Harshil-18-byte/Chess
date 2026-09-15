@@ -336,6 +336,7 @@ class GameStateNotifier extends AsyncNotifier<ChessMatch> {
         toSquare: to,
         updatedHalfmoveClock: updatedHalfmoveClock,
         promotionPiece: promo,
+        useLocalFallback: currentMatch.matchType != 'human',
       );
 
       // Optimistic state update for instant visual feedback
