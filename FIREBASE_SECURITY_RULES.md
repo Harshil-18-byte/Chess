@@ -1,3 +1,19 @@
+---
+{
+  "id": "file_h2ncvwhw",
+  "filetype": "document",
+  "filename": "FIREBASE_SECURITY_RULES",
+  "created_at": "2026-09-15T03:46:12.033Z",
+  "updated_at": "2026-09-15T03:46:12.033Z",
+  "meta": {
+    "location": "/",
+    "tags": [],
+    "categories": [],
+    "description": "",
+    "source": "markdown"
+  }
+}
+---
 # Chessical // Production Firebase Security Rules Specification
 
 This document provides the complete, annotated `firestore.rules` specification for the Chessical platform. These rules enforce cryptographic participant identity, turn progression match invariants, create-only move history immutability, server timestamp verification, and user suspension filters.
