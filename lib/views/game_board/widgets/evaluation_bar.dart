@@ -98,8 +98,8 @@ class EvaluationBar extends StatelessWidget {
                 evalText,
                 style: TextStyle(
                   color: (isWhiteOrientation && whiteAdvantageRatio > 0.5)
-                      ? Colors.black87
-                      : Colors.white,
+                      ? BoardThemes.deepVoid
+                      : BoardThemes.pureWhite,
                   fontWeight: FontWeight.bold,
                   fontSize: 10,
                 ),
