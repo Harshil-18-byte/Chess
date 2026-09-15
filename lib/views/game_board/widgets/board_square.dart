@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/board_themes.dart';
+import '../../../services/settings_service.dart';
 import 'chess_piece.dart';
 
 /// Single square on the chess board with explicit 0-63 linear math and drag-and-drop targets.
-class BoardSquareWidget extends StatelessWidget {
+class BoardSquareWidget extends ConsumerWidget {
   final int linearIndex; // 0 (a8) to 63 (h1)
   final bool isFlipped; // True if viewing from Black's perspective
   final String? pieceChar; // Piece on this square or null
@@ -69,9 +71,12 @@ class BoardSquareWidget extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final themeId = ref.watch(boardThemeModeProvider);
+    final themeColors = BoardThemes.getThemeColors(themeId);
+    
     final squareColor =
-        isLightSquare ? BoardThemes.lightSquare : BoardThemes.darkSquare;
+        isLightSquare ? themeColors.$1 : themeColors.$2;
 
     // Check rank/file edge for coordinate labels
     final file = effectiveIndex % 8;
@@ -106,7 +111,7 @@ class BoardSquareWidget extends StatelessWidget {
                   Container(
                     decoration: BoxDecoration(
                       color: BoardThemes.checkSquareHighlight,
-                      border: Border.all(color: Colors.redAccent, width: 2),
+                      border: Border.all(color: BoardThemes.dangerAlert, width: 2),
                     ),
                   ),
                 if (candidateData.isNotEmpty)
@@ -125,8 +130,8 @@ class BoardSquareWidget extends StatelessWidget {
                         fontSize: 10,
                         fontWeight: FontWeight.w700,
                         color: isLightSquare
-                            ? BoardThemes.darkSquare.withAlpha(200)
-                            : BoardThemes.lightSquare.withAlpha(200),
+                            ? themeColors.$2.withAlpha(200)
+                            : themeColors.$1.withAlpha(200),
                       ),
                     ),
                   ),
@@ -142,8 +147,8 @@ class BoardSquareWidget extends StatelessWidget {
                         fontSize: 10,
                         fontWeight: FontWeight.w700,
                         color: isLightSquare
-                            ? BoardThemes.darkSquare.withAlpha(200)
-                            : BoardThemes.lightSquare.withAlpha(200),
+                            ? themeColors.$2.withAlpha(200)
+                            : themeColors.$1.withAlpha(200),
                       ),
                     ),
                   ),
