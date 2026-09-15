@@ -1,3 +1,19 @@
+---
+{
+  "id": "file_69k5d09m",
+  "filetype": "document",
+  "filename": "CHANGELOG",
+  "created_at": "2026-09-15T03:45:54.871Z",
+  "updated_at": "2026-09-15T03:45:54.872Z",
+  "meta": {
+    "location": "/",
+    "tags": [],
+    "categories": [],
+    "description": "",
+    "source": "markdown"
+  }
+}
+---
 # Chessical // Changelog Specification
 
 All notable changes, architectural milestones, engine integrations, security enhancements, and rendering upgrades for the Chessical platform are documented in this file in strict adherence to [Semantic Versioning (SemVer 2.0.0)](https://semver.org/).
