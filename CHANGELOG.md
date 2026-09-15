@@ -8,9 +8,24 @@ All notable changes, architectural milestones, engine integrations, security enh
 
 | Version | Release Date | Key Milestone | Core Deliverable |
 | :--- | :--- | :--- | :--- |
+| **v1.3.0** | 2026-09-15 | Liquid Glass UI & Social Dashboard | Complete Zone 2 (Matchmaking, Social Tabs, Performance Graph) & Zone 4 (Settings, Custom Themes) integration. |
 | **v1.2.0** | 2026-09-12 | Obsidian Magma Branding & Documentation Hardening | Complete CuraVeris-aligned architecture guides, brand logo integration, and UUIDv4 schema validation. |
 | **v1.1.0** | 2026-09-12 | 3D Viewport & Raycasting Engine | Perspective CustomPainter 3D board, procedural lathe mesh profiles, screen-to-square raycaster, and 2D fallback. |
 | **v1.0.0** | 2026-09-12 | Zero-Exploit Core & Cloud Synchronization | Pure-Dart rules engine, Riverpod AsyncNotifier state machine, Stockfish FFI isolate, and atomic Firestore transactions. |
+
+---
+
+## [1.3.0] - 2026-09-15
+
+### Added
+- **Liquid Glass Design System**:
+  - Global Custom Suite themes (Classic Wood, Neo Synth, Liquid Glass, Midnight Void) injected into the core.
+  - Zero-icon strict typography specification matching the Liquid Glass aesthetic.
+- **Social & Matchmaking Dashboard**:
+  - `PerformanceGraph` utilizing `fl_chart` for dynamic Elo rating visualization.
+  - Tabbed `HomeScreen` splitting Social and Play navigation pathways.
+- **Dynamic Board Consumer**:
+  - `BoardSquareWidget` refactored as a `ConsumerWidget` for real-time live-reloads when changing Custom Suite themes.
 
 ---
 
