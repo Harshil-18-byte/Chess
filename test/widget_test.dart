@@ -5,7 +5,7 @@ import 'package:enterprise_chess/main.dart';
 import 'package:enterprise_chess/services/firebase_auth_service.dart';
 import 'package:enterprise_chess/services/firestore_service.dart';
 import 'package:enterprise_chess/state/game_state_notifier.dart';
-import 'package:enterprise_chess/views/home_screen.dart';
+import 'package:enterprise_chess/views/dashboard/home_screen.dart';
 
 class TestAuthService extends FirebaseAuthService {
   final String testUid;
