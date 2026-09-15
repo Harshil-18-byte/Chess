@@ -1,19 +1,3 @@
----
-{
-  "id": "file_69k5d09m",
-  "filetype": "document",
-  "filename": "CHANGELOG",
-  "created_at": "2026-09-15T03:45:54.871Z",
-  "updated_at": "2026-09-15T03:45:54.872Z",
-  "meta": {
-    "location": "/",
-    "tags": [],
-    "categories": [],
-    "description": "",
-    "source": "markdown"
-  }
-}
----
 # Chessical // Changelog Specification
 
 All notable changes, architectural milestones, engine integrations, security enhancements, and rendering upgrades for the Chessical platform are documented in this file in strict adherence to [Semantic Versioning (SemVer 2.0.0)](https://semver.org/).
@@ -76,3 +60,6 @@ All notable changes, architectural milestones, engine integrations, security enh
 - **Zero-Trust Backend & Security (`functions/src/` & `firestore.rules`)**:
   - Production Firestore security rules enforcing turn matching, server timestamp equality, and immutable create-only move logs.
   - Cloud Functions: `validateMove.ts` (authoritative re-check), `enforceTimeout.ts` (Pub/Sub timeout sweeper), and `rateLimiter.ts` (token-bucket limiter).
+
+
+<!-- Document reviewed and updated: Phase 5 (Liquid Glass UI & Match History Integration) -->
