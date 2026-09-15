@@ -8,6 +8,23 @@ final sharedPreferencesProvider = Provider<SharedPreferences>((ref) {
 });
 
 final render3dProvider = NotifierProvider<Render3dNotifier, bool>(Render3dNotifier.new);
+final boardThemeModeProvider = NotifierProvider<BoardThemeModeNotifier, String>(BoardThemeModeNotifier.new);
+
+class BoardThemeModeNotifier extends Notifier<String> {
+  static const _key = 'chess_board_theme_mode';
+
+  @override
+  String build() {
+    final prefs = ref.watch(sharedPreferencesProvider);
+    return prefs.getString(_key) ?? 'classic';
+  }
+
+  Future<void> setTheme(String theme) async {
+    state = theme;
+    final prefs = ref.read(sharedPreferencesProvider);
+    await prefs.setString(_key, theme);
+  }
+}
 
 class Render3dNotifier extends Notifier<bool> {
   static const _key = 'chess_render_3d';
