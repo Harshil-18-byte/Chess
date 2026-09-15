@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/theme/board_themes.dart';
 
 /// Renders a crisp vector/styled chess piece with drag capabilities.
 class ChessPieceWidget extends StatelessWidget {
@@ -61,7 +62,7 @@ class ChessPieceWidget extends StatelessWidget {
               foreground: Paint()
                 ..style = PaintingStyle.stroke
                 ..strokeWidth = isWhite ? 2.5 : 2.0
-                ..color = isWhite ? const Color(0xFF1E293B) : Colors.black,
+                ..color = isWhite ? const Color(0xFF1E293B) : BoardThemes.pitchBlack,
             ),
           ),
           // Fill
